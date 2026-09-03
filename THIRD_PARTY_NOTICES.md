@@ -25,5 +25,10 @@ not automatically fetch them, and does not bundle the reference projects used
 for investigation. Source links are references, not endorsements or permission
 to redistribute their binaries.
 
+The [external-file guide](docs/DLL_PREPARATION.en.md) identifies the exact tested
+converter archive and distinguishes its executable Worker from the driver NGX
+library and caller shim. Upstream source attribution does not establish a
+reproducible build or grant rights to redistribute its modified model.
+
 This is an independent experimental project, not an NVIDIA product. NVIDIA,
 DLSS and other product names belong to their respective owners.

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "comfy-dlss-experimental"
 version = "0.2.0.dev1"
 description = "Experimental ComfyUI nodes for external DLSS neural-rendering runtimes"
-readme = "README.md"
+readme = "README.en.md"
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
 dependencies = []

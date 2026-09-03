@@ -1,0 +1,541 @@
+{
+  "DLSSExperimentalRuntimeConfig": {
+    "display_name": "DLSS 5 Runtime Configuration",
+    "description": "Selects the backend, exact runtime files, host platform, Proton installation and Worker lifecycle. Windows launches natively; Linux uses Proton. Native Linux NR and the official adapter are not implemented.",
+    "inputs": {
+      "backend": {
+        "name": "NR backend",
+        "tooltip": "auto reads the preset backend. direct_nr is active; the official adapter is reserved.",
+        "options": {
+          "auto": "Automatic",
+          "direct_nr": "Direct NR",
+          "renodx_reshade": "ReShade/RenoDX (diagnostic)",
+          "nvidia_official": "Official adapter (not implemented)"
+        }
+      },
+      "proton": {
+        "name": "Installed Proton",
+        "tooltip": "Linux/Proton only. A custom Proton path takes precedence."
+      },
+      "linux_display_backend": {
+        "name": "Linux display backend",
+        "tooltip": "Auto selects Xwayland, including on Wayland desktops. Direct NR currently rejects native Wayland.",
+        "options": {
+          "auto": "Automatic",
+          "xwayland": "Xwayland (recommended)",
+          "wayland_native_experimental": "Native Wayland (diagnostic only)"
+        }
+      },
+      "worker_policy": {
+        "name": "Legacy worker policy",
+        "tooltip": "Legacy policy; the resident toggle takes precedence. auto means isolated.",
+        "options": {
+          "isolated": "Release after task",
+          "persistent": "Resident",
+          "auto": "Automatic"
+        }
+      },
+      "runtime_preset": {
+        "name": "Runtime preset path",
+        "tooltip": "Absolute path or relative to the node's user data directory; not relative to the repository."
+      },
+      "catalog": {
+        "name": "Runtime catalog",
+        "tooltip": "Optional output from Runtime Probe. Execution still checks the actual host."
+      },
+      "keep_worker_alive": {
+        "name": "Lazy resident Worker",
+        "tooltip": "On: lazily reuse matching dimensions/NR controls. Off: release after task. NR control changes rebuild the instance."
+      },
+      "idle_timeout_seconds": {
+        "name": "Idle release timeout (s)",
+        "tooltip": "Automatically release an idle resident after this many seconds; manual release is also available."
+      },
+      "system_platform": {
+        "name": "Host platform",
+        "tooltip": "auto uses the Comfy backend host, not the browser. An explicit choice must match the host.",
+        "options": {
+          "auto": "Automatic",
+          "windows": "Windows",
+          "linux": "Linux"
+        }
+      },
+      "linux_execution": {
+        "name": "Linux execution mode",
+        "tooltip": "Proton is implemented. native_reserved is a placeholder and fails explicitly.",
+        "options": {
+          "proton": "Proton",
+          "native_reserved": "Native Linux NR (not implemented)"
+        }
+      },
+      "proton_path": {
+        "name": "Custom Proton path",
+        "tooltip": "Absolute Proton directory or launcher path; supports ~. Blank uses the dropdown. No shell arguments."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Runtime configuration"
+      },
+      "1": {
+        "name": "Status JSON"
+      }
+    }
+  },
+  "DLSSExperimentalTemporalSettings": {
+    "display_name": "DLSS Video Guides",
+    "description": "Connect DIS or NVIDIA optical flow. Controls analysis size, scene-cut resets and consistency diagnostics. Without a provider, uses legacy DIS/zero mode. Computes only requested ranges.",
+    "inputs": {
+      "analysis_scale": {
+        "name": "Flow analysis size (percent)",
+        "tooltip": "Percent of working-frame dimensions used for flow analysis; vectors are scaled back to NR pixel units."
+      },
+      "scene_cut_threshold": {
+        "name": "Scene-cut threshold",
+        "tooltip": "Scene-change detection threshold for resetting motion/NR history, not effect intensity."
+      },
+      "consistency_tolerance": {
+        "name": "Consistency tolerance (px)",
+        "tooltip": "Forward/backward consistency tolerance in pixels; diagnostic only, not model strength."
+      },
+      "motion_provider": {
+        "name": "Fallback motion mode",
+        "tooltip": "Used only without a connected provider. Zero motion still retains NR history and cut detection.",
+        "options": {
+          "dis": "DIS optical flow",
+          "zero": "Zero vectors (diagnostic)"
+        }
+      },
+      "flow_provider": {
+        "name": "Optical-flow provider",
+        "tooltip": "Connected DIS/NVIDIA provider takes precedence over fallback motion mode."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Guide settings"
+      },
+      "1": {
+        "name": "Settings JSON"
+      }
+    }
+  },
+  "DLSSExperimentalPrepareTemporalSequence": {
+    "display_name": "DLSS Video Input Adapter",
+    "description": "Inspect video information and compatibility without running NR. Missing SDR tags require explicit interpretation. Optional sRGB pixel conversion is cached during processing; final decoding checks cover the requested range.",
+    "inputs": {
+      "video": {
+        "name": "Video",
+        "tooltip": "Input VIDEO, preserving upstream trims/crops. No whole-video NR is run here."
+      },
+      "settings": {
+        "name": "Guide settings",
+        "tooltip": "Connect Video Guides."
+      },
+      "color_policy": {
+        "name": "Color metadata policy",
+        "tooltip": "Strict requires known tags. Fill missing only applies assumptions to absent tags; never overrides known HDR.",
+        "options": {
+          "strict": "Strict tags",
+          "fill_missing": "Interpret missing tags"
+        }
+      },
+      "assumed_transfer": {
+        "name": "Assumed missing transfer",
+        "tooltip": "Used only for missing transfer tags. iec61966-2-1 means sRGB.",
+        "options": {
+          "bt709": "BT.709",
+          "iec61966-2-1": "sRGB"
+        }
+      },
+      "assumed_range": {
+        "name": "Assumed missing range",
+        "tooltip": "Missing range only: tv = limited, pc = full. Does not modify the source file.",
+        "options": {
+          "tv": "Limited (TV)",
+          "pc": "Full (PC)"
+        }
+      },
+      "normalize_to_srgb": {
+        "name": "Normalize to sRGB (SDR)",
+        "tooltip": "Converts supported BT.709 SDR pixels to sRGB before flow/NR and back for matched A/B export. Cached independently of Look. Already-sRGB is unchanged. Not HDR conversion."
+      },
+      "ffmpeg_path": {
+        "name": "FFmpeg path (optional)",
+        "tooltip": "Absolute host executable or bin directory. Blank uses the Comfy backend PATH. No quotes or arguments; not a Proton path. Only this DLSS input branch is affected."
+      },
+      "ffprobe_path": {
+        "name": "ffprobe path (optional)",
+        "tooltip": "Absolute executable or bin directory. Blank uses the explicit FFmpeg directory; otherwise backend PATH. Invalid explicit paths never fall back. Check input shows the resolved tools."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Prepared video input"
+      },
+      "1": {
+        "name": "Diagnostic report"
+      }
+    }
+  },
+  "DLSSExperimentalNRProfile": {
+    "display_name": "DLSS NR Look",
+    "description": "Shared NR Look for Preview and Process. Preset/style meanings depend on the Worker/model; these are not SR quality modes. Render again after edits. Mix is post-render blending; external depth/mask planes are not transmitted.",
+    "inputs": {
+      "nr_enabled": {
+        "name": "Enable NR",
+        "tooltip": "Disable for a true bypass; the Worker is skipped."
+      },
+      "intensity": {
+        "name": "NR intensity",
+        "tooltip": "Model enhancement strength, not mix. Zero intensity is not a guaranteed bypass; disable NR or set mix to zero."
+      },
+      "mix": {
+        "name": "Result blend",
+        "tooltip": "Post-render input/result blend. Zero returns input and skips the Worker; one uses full NR output. Not a model parameter."
+      },
+      "nr_preset": {
+        "name": "Model preset (experimental)",
+        "tooltip": "Model default recommended. Experimental A/B/C had identical output on the tested pair; not SR quality/balanced modes.",
+        "options": {
+          "模型默认（建议）": "Model default (recommended)",
+          "实验预设 A": "Experimental preset A",
+          "实验预设 B": "Experimental preset B",
+          "实验预设 C": "Experimental preset C"
+        }
+      },
+      "nr_style": {
+        "name": "Style",
+        "tooltip": "Community labels, not guaranteed across DLLs. Natural is the legacy default. Render again after changing.",
+        "options": {
+          "默认风格": "Default style",
+          "自然 · Natural": "Natural",
+          "电影感 · Cinematic": "Cinematic"
+        }
+      },
+      "local_tone_strength": {
+        "name": "Local tone",
+        "tooltip": "Local tone strength passed to NR, not a browser color filter."
+      },
+      "local_structure_strength": {
+        "name": "Structure and detail",
+        "tooltip": "NR structure/detail control; excessive values can alter details."
+      },
+      "skin_structure_strength": {
+        "name": "Skin structure (-1 = auto)",
+        "tooltip": "-1 retains runtime defaults. No extra skin-sharpening pass or external skin mask; response depends on the model/input."
+      },
+      "automatic_mask": {
+        "name": "Automatic mask",
+        "tooltip": "Requests runtime automatic masking; not an external mask input or a guarantee of visible change."
+      },
+      "ui_correction": {
+        "name": "UI correction (experimental)",
+        "tooltip": "Experimental. No separate UI texture is provided; leave off for ordinary video. Burned-in subtitles are not guaranteed protected."
+      },
+      "worker_profile": {
+        "name": "Worker profile (experimental)",
+        "tooltip": "Keep the compatible profile unless testing the Worker. Not image-quality levels; no response observed on the tested pair.",
+        "options": {
+          "实验配置 A": "Experimental profile A",
+          "当前兼容配置（建议）": "Compatible profile (recommended)",
+          "实验配置 B": "Experimental profile B",
+          "实验配置 C": "Experimental profile C"
+        }
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "NR Look"
+      },
+      "1": {
+        "name": "Look JSON"
+      }
+    }
+  },
+  "DLSSExperimentalRuntimeProbe": {
+    "display_name": "DLSS 5 Runtime Probe",
+    "description": "Detects the host, NVIDIA driver, video tools and installed Proton versions without loading external DLLs.",
+    "inputs": {
+      "include_diagnostics": {
+        "name": "Include diagnostics",
+        "tooltip": "Include additional host/tool diagnostics; no DLLs are loaded."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Runtime catalog"
+      },
+      "1": {
+        "name": "Diagnostic report"
+      }
+    }
+  },
+  "DLSSExperimentalDISFlow": {
+    "display_name": "DLSS Optical Flow · DIS",
+    "description": "Lazy CPU optical flow; connect to Video Guides. Quality uses finer DIS analysis, not a learned model.",
+    "inputs": {
+      "preset": {
+        "name": "Compute preset",
+        "tooltip": "Balances CPU cost and DIS analysis quality; only runs for requested ranges.",
+        "options": {
+          "均衡 · Balanced": "Balanced",
+          "速度优先 · Fast": "Fast",
+          "质量优先 · Quality": "Quality"
+        }
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Optical-flow provider"
+      },
+      "1": {
+        "name": "Settings JSON"
+      }
+    }
+  },
+  "DLSSExperimentalNVIDIAFlow": {
+    "display_name": "DLSS Optical Flow · NVIDIA",
+    "description": "Native NVIDIA hardware optical flow; never silently falls back to DIS. Requires the host helper and driver, not Proton or model weights. Linux GPU-tested; Windows GPU validation is pending.",
+    "inputs": {
+      "preset": {
+        "name": "Compute preset",
+        "tooltip": "Hardware optical-flow performance/quality preset; not NR intensity.",
+        "options": {
+          "均衡 · Balanced": "Balanced",
+          "速度优先 · Fast": "Fast",
+          "质量优先 · Quality": "Quality"
+        }
+      },
+      "output_grid": {
+        "name": "Output grid",
+        "tooltip": "Smaller grid produces denser output, not guaranteed better NR. Unsupported choices fail explicitly.",
+        "options": {
+          "4 × 4（较省资源）": "4 × 4 (lower resource use)",
+          "2 × 2": "2 × 2",
+          "1 × 1（逐像素输出）": "1 × 1 (dense output)"
+        }
+      },
+      "temporal_hints": {
+        "name": "Reuse temporal hints",
+        "tooltip": "Resets on cuts and new requests. Forward/backward estimates keep separate histories."
+      },
+      "device": {
+        "name": "CUDA device index",
+        "tooltip": "Native CUDA device ordinal used by the optical-flow helper."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Optical-flow provider"
+      },
+      "1": {
+        "name": "Settings JSON"
+      }
+    }
+  },
+  "DLSSExperimentalPreviewSession": {
+    "display_name": "DLSS Preview Session",
+    "description": "Creates in-node A/B previews and VIDEO outputs. Saving video_b/video_a retains this preview's range, single-frame mode and scale; it does not automatically export the full-resolution whole video. Use Process Video → Save Video for independent final output.",
+    "inputs": {
+      "sequence": {
+        "name": "Prepared video input",
+        "tooltip": "Input Adapter sequence: VIDEO, color interpretation and motion settings."
+      },
+      "runtime": {
+        "name": "Runtime configuration",
+        "tooltip": "Selects runtime files, host/Proton and Worker lifecycle."
+      },
+      "profile_b": {
+        "name": "Current Look B",
+        "tooltip": "Look being adjusted. video_b contains its preview result."
+      },
+      "profile_a": {
+        "name": "Reference Look A (optional)",
+        "tooltip": "Optional second Look. Unconnected means original at matching size/color. Adds an NR pass; does not freeze the Look."
+      },
+      "start_time": {
+        "name": "Preview start (s)",
+        "tooltip": "Seconds from the input VIDEO start, after any upstream trim."
+      },
+      "duration": {
+        "name": "Manual duration (s)",
+        "tooltip": "Ignored by Process to end. Otherwise range length, clamped at input end; in frame mode only bounds the cursor. Not end time, batch size or warmup."
+      },
+      "preview_scale": {
+        "name": "Preview dimensions (percent)",
+        "tooltip": "Scales both dimensions: 50 means about one quarter the pixels, 100 means input size. Changes NR input and VIDEO output, not just display. Not SR.",
+        "options": {
+          "50": "50",
+          "75": "75",
+          "100": "100"
+        }
+      },
+      "contract": {
+        "name": "History settings (optional)",
+        "tooltip": "History processing only. Default context 0.5 s and new-Worker warmup 120 evaluations; neither adds to output duration."
+      },
+      "preview_mode": {
+        "name": "Queue preview mode",
+        "tooltip": "Main Comfy Run uses this mode. The two card buttons select frame/range for one request without changing saved values or running downstream saves.",
+        "options": {
+          "range": "Selected range",
+          "frame": "Cursor frame"
+        }
+      },
+      "cursor_time": {
+        "name": "Cursor offset within range (s)",
+        "tooltip": "Offset within the selected range; start 10 plus cursor 1.5 selects around 11.5 s. Frame mode only; range mode ignores it."
+      },
+      "process_to_end": {
+        "name": "Process to video end",
+        "tooltip": "Reads remaining duration automatically; start 0 means whole video. The frame button still outputs one frame. Frame/disk capacity checks remain."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Preview session"
+      },
+      "1": {
+        "name": "Status JSON"
+      },
+      "2": {
+        "name": "Video B"
+      },
+      "3": {
+        "name": "Video A"
+      }
+    }
+  },
+  "DLSSExperimentalCompareVideo": {
+    "display_name": "DLSS Compare Video (Scaffold)",
+    "description": "Reserved comparison-video exporter; not implemented. Use Preview Session for browser-only wipe, side-by-side, flicker and difference.",
+    "inputs": {
+      "video_a": {
+        "name": "Video A",
+        "tooltip": "Reference video; exporter not implemented."
+      },
+      "video_b": {
+        "name": "Video B",
+        "tooltip": "Processed video; exporter not implemented."
+      },
+      "mode": {
+        "name": "Comparison mode",
+        "tooltip": "Reserved export layout, not an active render setting.",
+        "options": {
+          "side_by_side": "Side by side",
+          "wipe": "Wipe",
+          "flicker": "Flicker",
+          "difference": "Difference"
+        }
+      },
+      "split_percent": {
+        "name": "Split position (percent)",
+        "tooltip": "Reserved split position; comparison export is not implemented."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Comparison video"
+      },
+      "1": {
+        "name": "Diagnostic report"
+      }
+    }
+  },
+  "DLSSExperimentalRenderContract": {
+    "display_name": "DLSS History Settings",
+    "description": "Internal temporal processing, not output duration. Warmup and preceding context assist NR and are not saved. Set output range in Preview/Process. Processing is continuous, not duration-sized batches.",
+    "inputs": {
+      "warmup_frames": {
+        "name": "New Worker warmup evaluations",
+        "tooltip": "Repeated first-frame NR evaluations for a new Worker, not output frames/batch size. Compatible residents reuse initialization."
+      },
+      "pre_roll": {
+        "name": "Preceding history (s, not output)",
+        "tooltip": "Real context before output start for motion/NR history. Not saved, and cannot cross the upstream trim start."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "History settings (optional)"
+      },
+      "1": {
+        "name": "History JSON"
+      }
+    }
+  },
+  "DLSSExperimentalProcessVideo": {
+    "display_name": "DLSS Process Video",
+    "description": "Controls final output independently of Preview and produces VIDEO for Save Video. Process to end resolves remaining input duration. Preparation is disk-backed with frame-count and free-space checks; there is no fixed 30-second truncation.",
+    "inputs": {
+      "sequence": {
+        "name": "Prepared video input",
+        "tooltip": "Input Adapter sequence: VIDEO, color interpretation and motion settings."
+      },
+      "runtime": {
+        "name": "Runtime configuration",
+        "tooltip": "Selects runtime files, host/Proton and Worker lifecycle."
+      },
+      "profile": {
+        "name": "NR Look",
+        "tooltip": "Look for final output; can be shared with Preview."
+      },
+      "start_time": {
+        "name": "Output start (s)",
+        "tooltip": "Seconds from input VIDEO start, independent of Preview."
+      },
+      "duration": {
+        "name": "Output duration (s, 0 = remainder)",
+        "tooltip": "Ignored by Process to end. Otherwise positive duration or legacy zero for all remaining input. Requires sufficient disk."
+      },
+      "scale": {
+        "name": "Output dimensions (percent)",
+        "tooltip": "100 preserves input dimensions; 50/75 downscale width and height. Independent of Preview; not DLSS upscaling.",
+        "options": {
+          "50": "50",
+          "75": "75",
+          "100": "100"
+        }
+      },
+      "contract": {
+        "name": "History settings (optional)",
+        "tooltip": "Internal history only; start, duration and Process to end determine final output range."
+      },
+      "process_to_end": {
+        "name": "Process to video end",
+        "tooltip": "Output from start to input end, ignoring manual duration. Start 0 and scale 100 give the whole input at its original size."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Video"
+      },
+      "1": {
+        "name": "Diagnostic report"
+      }
+    }
+  },
+  "DLSSExperimentalCarrierTest": {
+    "display_name": "DLSS Carrier Bootstrap Test",
+    "description": "Optional ReShade/RenoDX/D3D12 carrier diagnostic. It does not render NR frames and is not required for direct NR.",
+    "inputs": {
+      "runtime": {
+        "name": "Runtime configuration",
+        "tooltip": "Requires a ReShade diagnostic preset, not the direct NR video preset."
+      },
+      "present_count": {
+        "name": "Diagnostic present count",
+        "tooltip": "Number of diagnostic swapchain presents; not NR output frames."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Verified diagnostic runtime"
+      },
+      "1": {
+        "name": "Diagnostic report"
+      }
+    }
+  }
+}

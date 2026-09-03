@@ -21,6 +21,7 @@ from .input_policy import InputColorPolicy, validated_metadata
 from .color_normalization import convert_rgba8, export_transfer_filter
 from .execution_log import phase
 from .storage_budget import frame_budget, require_disk, preparation_storage_plan
+from .media_tools import media_executable
 
 
 @dataclass(frozen=True)
@@ -75,10 +76,10 @@ def run_cancellable(command: list[str], *, timeout: float, cancelled) -> subproc
         process.communicate()
 
 
-def inspect_media(source: Path, ffprobe: str = "ffprobe", *, cancelled=None) -> dict:
+def inspect_media(source: Path, ffprobe: str | None = None, *, cancelled=None) -> dict:
     """Read selected media headers without rejecting missing/unsupported tags."""
     command = [
-        ffprobe, "-v", "error", "-show_entries",
+        ffprobe or media_executable("ffprobe"), "-v", "error", "-show_entries",
         "format=format_name,duration,size,bit_rate,start_time:"
         "stream=index,codec_type,codec_name,profile,level,width,height,avg_frame_rate,r_frame_rate,"
         "start_time,duration,nb_frames,bit_rate,bits_per_raw_sample,pix_fmt,color_space,color_range,"
@@ -91,7 +92,7 @@ def inspect_media(source: Path, ffprobe: str = "ffprobe", *, cancelled=None) -> 
     return json.loads(result.stdout)
 
 
-def probe_media(source: Path, ffprobe: str = "ffprobe", *, cancelled=None,
+def probe_media(source: Path, ffprobe: str | None = None, *, cancelled=None,
                 color_policy: InputColorPolicy = InputColorPolicy()) -> dict:
     return validated_metadata(inspect_media(source, ffprobe, cancelled=cancelled), color_policy)
 
@@ -204,7 +205,7 @@ def export_video(raw: Path, destination: Path, manifest: dict, *, with_audio: bo
     rate = Fraction(manifest["fps"])
     require_disk(destination.parent, raw.stat().st_size, stage="视频编码输出")
     first = manifest["frames"][manifest["visible_start_index"]]["pts_ns"] / 1e9
-    command = ["ffmpeg", "-hide_banner", "-v", "error", "-n", "-f", "rawvideo", "-pixel_format", "rgba",
+    command = [media_executable("ffmpeg"), "-hide_banner", "-v", "error", "-n", "-f", "rawvideo", "-pixel_format", "rgba",
                "-video_size", f"{width}x{height}", "-framerate", str(rate), "-i", str(raw)]
     audio = with_audio and manifest["metadata"]["has_audio"]
     if audio:
@@ -228,7 +229,7 @@ def export_video(raw: Path, destination: Path, manifest: dict, *, with_audio: bo
     duration_seconds = float(count / rate)
     run_cancellable(command, timeout=max(120, min(86400, duration_seconds * 10 + 60)), cancelled=cancelled)
     # Verify the actual encoded frame count before publishing the final name.
-    check = run_cancellable(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
+    check = run_cancellable([media_executable("ffprobe"), "-v", "error", "-select_streams", "v:0", "-count_frames",
                             "-show_entries", "stream=nb_read_frames", "-of", "json", str(temporary)],
                            timeout=max(30, min(86400, duration_seconds * 2 + 30)), cancelled=cancelled)
     if int(json.loads(check.stdout)["streams"][0]["nb_read_frames"]) != count:

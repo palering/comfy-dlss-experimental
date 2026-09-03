@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { canRelease, historyLines, matchingRecords, number, workerLines, residentLines } from "../web/runtime_monitor_state.js";
+import { setLocale } from '../web/i18n.js';
+setLocale('zh');
 
 test("manual release is available only for a live, unrequested worker", () => {
   for (const worker_state of ["not_started", "released", "cleanup_failed", "releasing", undefined]) {

@@ -1,4 +1,4 @@
 # Runtime discovery uses only the standard library.
 # The video nodes and opt-in diagnostic require numpy, cv2 (DIS), av and PIL,
-# plus ffmpeg/ffprobe executables. See docs/video-nr-validation.md before
+# plus ffmpeg/ffprobe executables. See docs/media-tools.en.md before
 # changing packages in a ComfyUI environment; these are not auto-installed.

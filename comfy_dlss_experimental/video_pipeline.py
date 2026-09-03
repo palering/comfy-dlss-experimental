@@ -19,6 +19,7 @@ from .temporal_guides import GuideSettings
 from .flow_provider import FlowProvider
 from .input_policy import InputColorPolicy
 from .execution_log import measured, phase, current_trace
+from .media_tools import media_tool_identity
 
 _GPU_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -160,7 +161,8 @@ def prepared_cache(source: Path, request: ClipRequest, guides: GuideSettings, ro
     if guides.motion_provider == "nvidia":
         from .nvidia_flow import probe_nvidia
         backend = probe_nvidia(guides.flow.device if guides.flow else 0, cancelled=cancelled)
-    identity = {"version": 5, "source": str(source), "sha256": file_hash(source), "flow_backend": backend,
+    identity = {"version": 6, "source": str(source), "sha256": file_hash(source), "flow_backend": backend,
+                "media_tools": media_tool_identity(),
                 "request": asdict(request), "guides": asdict(guides), "color_policy": asdict(color_policy)}
     key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     path = root / "prepared-clips" / key

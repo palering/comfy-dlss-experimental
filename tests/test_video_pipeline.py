@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from comfy_dlss_experimental.media_clip import ClipRequest, file_hash, run_cancellable
-from comfy_dlss_experimental.presets import RuntimePreset
+from comfy_dlss_experimental.presets import RuntimePreset, resolve_component_paths
 from comfy_dlss_experimental.video_pipeline import bind_video_source, cancellable_lock, guide_settings, profile_settings, snapshot_runtime, render_original
 
 
@@ -39,6 +39,19 @@ class VideoPipelineTests(unittest.TestCase):
         for value in (base | {"components": {"worker": "x"}}, base | {"wine_dll_overrides": {"dxgi": "n"}}, base | {"backend": "typo"}):
             with self.assertRaises(ValueError):
                 RuntimePreset.from_dict(value)
+
+    def test_install_example_resolves_from_data_root_preset_directory(self):
+        example = Path(__file__).resolve().parents[1] / "examples/runtime-presets/direct-nr.example.json"
+        preset = RuntimePreset.load(example)
+        with tempfile.TemporaryDirectory() as temporary:
+            data = Path(temporary)
+            relay = data / "installed-relay.exe"
+            with patch("comfy_dlss_experimental.helper_artifacts.find_helper", return_value=relay):
+                paths = resolve_component_paths(preset, base_dir=data / "runtime-presets")
+            expected = data / "components/nr/converter-v0.1.0-rtx40"
+            self.assertEqual(paths["worker"], (expected / "nvngx.dll").resolve())
+            self.assertEqual(paths["nvngx_dlssnr"], (expected / "nvngx_dlssnr.dll").resolve())
+            self.assertEqual(paths["relay"], relay)
 
     def test_legacy_controls_and_invalid_mix_fail_explicitly(self):
         with self.assertRaisesRegex(ValueError, "Legacy"):

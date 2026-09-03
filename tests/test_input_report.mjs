@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { known, reportSections } from '../web/input_report.js';
+import { setLocale } from '../web/i18n.js';
+setLocale('zh');
 
 test('normalization distinguishes working transfer from source interpretation', () => {
   const rows = reportSections({policy:{normalize_to_srgb:true}, effective_color:{color_transfer:'bt709'},

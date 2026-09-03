@@ -115,7 +115,7 @@ def main():
         if args.sha256:
             parser.error("--sha256 requires --archive or --url")
         print("Nodes are source-only. Native helpers require explicit installation; nothing was downloaded.")
-        print("Run with --archive <helper.zip> --sha256 <trusted-hash>; see docs/distribution.md.")
+        print("Run with --archive <helper.zip> --sha256 <trusted-hash>; see docs/distribution.en.md.")
         return  # Safe when a node manager invokes install.py without arguments.
     if not args.sha256:
         parser.error("--sha256 is required when installing a helper archive")

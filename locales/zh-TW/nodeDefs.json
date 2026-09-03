@@ -1,0 +1,541 @@
+{
+  "DLSSExperimentalRuntimeConfig": {
+    "display_name": "DLSS 5 运行时配置",
+    "description": "绑定后端、运行库文件、宿主平台、Proton 版本及 Worker 生命周期。Windows 原生启动；Linux 通过 Proton。原生 Linux NR 与官方适配器尚未实现。",
+    "inputs": {
+      "backend": {
+        "name": "NR 后端",
+        "tooltip": "auto 读取预设后端。direct_nr 是当前路线；官方适配器为占位。",
+        "options": {
+          "auto": "自动",
+          "direct_nr": "直接 NR",
+          "renodx_reshade": "ReShade/RenoDX（诊断）",
+          "nvidia_official": "官方适配器（未实现）"
+        }
+      },
+      "proton": {
+        "name": "已安装 Proton",
+        "tooltip": "仅 Linux/Proton 有效；自定义路径优先。"
+      },
+      "linux_display_backend": {
+        "name": "Linux 显示后端",
+        "tooltip": "auto 使用 Xwayland，包括 Wayland 桌面。直接 NR 当前不支持原生 Wayland。",
+        "options": {
+          "auto": "自动",
+          "xwayland": "Xwayland（建议）",
+          "wayland_native_experimental": "原生 Wayland（仅诊断）"
+        }
+      },
+      "worker_policy": {
+        "name": "旧版 Worker 策略",
+        "tooltip": "旧版策略；常驻开关优先。auto 等同任务后释放。",
+        "options": {
+          "isolated": "任务后释放",
+          "persistent": "常驻",
+          "auto": "自动"
+        }
+      },
+      "runtime_preset": {
+        "name": "运行时预设路径",
+        "tooltip": "绝对路径或相对节点用户数据目录的路径，不是相对仓库。"
+      },
+      "catalog": {
+        "name": "环境检测结果",
+        "tooltip": "可接环境检测输出；执行时仍以真实宿主为准。"
+      },
+      "keep_worker_alive": {
+        "name": "按需启动并常驻",
+        "tooltip": "开启：按需复用相同尺寸和 NR 参数的实例；关闭：任务后释放。改 NR 参数会重建。"
+      },
+      "idle_timeout_seconds": {
+        "name": "空闲自动释放（秒）",
+        "tooltip": "空闲达到此秒数自动释放常驻实例；也可手动释放。"
+      },
+      "system_platform": {
+        "name": "系统平台",
+        "tooltip": "auto 使用 Comfy 后端系统，不是浏览器系统。手选必须匹配真实宿主。",
+        "options": {
+          "auto": "自动",
+          "windows": "Windows",
+          "linux": "Linux"
+        }
+      },
+      "linux_execution": {
+        "name": "Linux 执行方式",
+        "tooltip": "Proton 已实现；native_reserved 是占位，会明确报错。",
+        "options": {
+          "proton": "Proton",
+          "native_reserved": "原生 Linux NR（未实现）"
+        }
+      },
+      "proton_path": {
+        "name": "Proton 自定义路径",
+        "tooltip": "绝对 Proton 安装目录或启动器路径，支持 ~。留空用下拉选项。不接受命令参数。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "运行时配置"
+      },
+      "1": {
+        "name": "状态 JSON"
+      }
+    }
+  },
+  "DLSSExperimentalTemporalSettings": {
+    "display_name": "DLSS 视频引导",
+    "description": "连接 DIS 或 NVIDIA 光流；控制分析尺寸、切镜重置和一致性诊断。未连接提供器时沿用 DIS/零矢量模式。只计算请求区间。",
+    "inputs": {
+      "analysis_scale": {
+        "name": "光流分析尺寸（百分比）",
+        "tooltip": "光流分析使用工作帧尺寸的百分比；运动矢量会换算回 NR 像素单位。"
+      },
+      "scene_cut_threshold": {
+        "name": "切镜阈值",
+        "tooltip": "场景变化达到阈值时重置光流/NR 历史，不是效果强度。"
+      },
+      "consistency_tolerance": {
+        "name": "一致性容差（像素）",
+        "tooltip": "前后向一致性的像素容差；仅用于诊断，不是模型强度。"
+      },
+      "motion_provider": {
+        "name": "未连接时的运动模式",
+        "tooltip": "仅未接提供器时使用。零矢量仍保留 NR 历史与切镜检测。",
+        "options": {
+          "dis": "DIS 光流",
+          "zero": "零矢量（诊断）"
+        }
+      },
+      "flow_provider": {
+        "name": "光流提供器",
+        "tooltip": "已连接的 DIS/NVIDIA 提供器优先于后备运动模式。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "引导设置"
+      },
+      "1": {
+        "name": "设置 JSON"
+      }
+    }
+  },
+  "DLSSExperimentalPrepareTemporalSequence": {
+    "display_name": "DLSS 视频输入适配",
+    "description": "检查视频信息与兼容性，不运行 NR。缺失 SDR 标签需明确解释。可选 sRGB 像素转换在处理时缓存；实际解码检查针对请求区间。",
+    "inputs": {
+      "video": {
+        "name": "视频",
+        "tooltip": "输入 VIDEO，保留上游截取与裁剪。此处不运行整段 NR。"
+      },
+      "settings": {
+        "name": "引导设置",
+        "tooltip": "连接 Video Guides（视频引导）。"
+      },
+      "color_policy": {
+        "name": "色彩标签策略",
+        "tooltip": "严格模式要求标签明确。补全仅作用于缺失标签，不覆盖已知 HDR。",
+        "options": {
+          "strict": "严格读取标签",
+          "fill_missing": "明确解释缺失标签"
+        }
+      },
+      "assumed_transfer": {
+        "name": "缺失传递曲线的假设",
+        "tooltip": "仅用于缺失传递曲线标签；iec61966-2-1 即 sRGB。",
+        "options": {
+          "bt709": "BT.709",
+          "iec61966-2-1": "sRGB"
+        }
+      },
+      "assumed_range": {
+        "name": "缺失范围的假设",
+        "tooltip": "仅用于缺失范围：tv 为有限范围，pc 为全范围。不改源文件。",
+        "options": {
+          "tv": "有限范围（TV）",
+          "pc": "全范围（PC）"
+        }
+      },
+      "normalize_to_srgb": {
+        "name": "统一为 sRGB（SDR）",
+        "tooltip": "在光流/NR 前把受支持的 BT.709 SDR 像素转为 sRGB，A/B 导出时还原。缓存独立于 Look。原本 sRGB 不重复转换，不是 HDR 转换。"
+      },
+      "ffmpeg_path": {
+        "name": "FFmpeg 路径（可选）",
+        "tooltip": "宿主系统的绝对可执行文件或 bin 目录。留空使用 Comfy 后端 PATH；不要加引号或命令参数，不是 Proton 内路径。仅影响这条 DLSS 输入分支。"
+      },
+      "ffprobe_path": {
+        "name": "ffprobe 路径（可选）",
+        "tooltip": "绝对可执行文件或 bin 目录。留空时优先使用手填 FFmpeg 的同目录，否则查找后端 PATH；手填无效不会偷偷回退。点击检查输入查看解析结果。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "视频输入与引导"
+      },
+      "1": {
+        "name": "诊断报告"
+      }
+    }
+  },
+  "DLSSExperimentalNRProfile": {
+    "display_name": "DLSS NR 效果",
+    "description": "Preview 与 Process 共用的 NR 效果。预设与风格依赖 Worker/模型，不是 SR 画质档位。修改后需重新渲染。mix 是后合成混合；不传入外部深度或蒙版平面。",
+    "inputs": {
+      "nr_enabled": {
+        "name": "启用 NR",
+        "tooltip": "关闭时真正旁路，不启动 Worker。"
+      },
+      "intensity": {
+        "name": "增强强度",
+        "tooltip": "模型增强强度，不等于 mix。0 不保证旁路；关闭 NR 或 mix=0 才真正旁路。"
+      },
+      "mix": {
+        "name": "效果混合",
+        "tooltip": "原图/结果后合成混合。0 返回原图并跳过 Worker，1 使用完整 NR。不是模型参数。"
+      },
+      "nr_preset": {
+        "name": "模型预设（实验）",
+        "tooltip": "建议模型默认。实验 A/B/C 在已测组合上输出相同，不是 SR 质量/均衡档。",
+        "options": {
+          "模型默认（建议）": "模型默认（建议）",
+          "实验预设 A": "实验预设 A",
+          "实验预设 B": "实验预设 B",
+          "实验预设 C": "实验预设 C"
+        }
+      },
+      "nr_style": {
+        "name": "画面风格",
+        "tooltip": "社区风格名称，不保证跨 DLL 一致。自然是旧版默认；修改后重新渲染。",
+        "options": {
+          "默认风格": "默认风格",
+          "自然 · Natural": "自然",
+          "电影感 · Cinematic": "电影感"
+        }
+      },
+      "local_tone_strength": {
+        "name": "局部色调",
+        "tooltip": "传入 NR 的局部色调强度，不是浏览器调色滤镜。"
+      },
+      "local_structure_strength": {
+        "name": "结构与细节",
+        "tooltip": "NR 结构与细节控制；过高可能改变细节。"
+      },
+      "skin_structure_strength": {
+        "name": "皮肤结构（-1 自动）",
+        "tooltip": "-1 保留运行时默认。不附加皮肤锐化或外部皮肤蒙版；响应取决于模型与输入。"
+      },
+      "automatic_mask": {
+        "name": "自动遮罩",
+        "tooltip": "请求运行时自动遮罩，不是外部蒙版输入，也不保证有可见变化。"
+      },
+      "ui_correction": {
+        "name": "UI 修正（实验）",
+        "tooltip": "实验项，没有独立 UI 纹理；普通视频建议关闭。不保证保护烧录字幕。"
+      },
+      "worker_profile": {
+        "name": "运行时配置（实验）",
+        "tooltip": "建议保留兼容配置，其他用于 Worker 实验。不是画质档位，已测组合未观察到差异。",
+        "options": {
+          "实验配置 A": "实验配置 A",
+          "当前兼容配置（建议）": "当前兼容配置（建议）",
+          "实验配置 B": "实验配置 B",
+          "实验配置 C": "实验配置 C"
+        }
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "NR 效果"
+      },
+      "1": {
+        "name": "效果 JSON"
+      }
+    }
+  },
+  "DLSSExperimentalRuntimeProbe": {
+    "display_name": "DLSS 5 环境检测",
+    "description": "检测宿主、NVIDIA 驱动、视频工具及已安装的 Proton，不加载外部 DLL。",
+    "inputs": {
+      "include_diagnostics": {
+        "name": "包含详细诊断",
+        "tooltip": "包含更多宿主与工具诊断，不加载 DLL。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "环境检测结果"
+      },
+      "1": {
+        "name": "诊断报告"
+      }
+    }
+  },
+  "DLSSExperimentalDISFlow": {
+    "display_name": "DLSS 光流 · DIS",
+    "description": "按需计算的 CPU 光流，连接 Video Guides。质量档采用更细的 DIS 分析，不是学习型模型。",
+    "inputs": {
+      "preset": {
+        "name": "计算档位",
+        "tooltip": "平衡 CPU 开销与 DIS 分析精度；仅处理请求区间。",
+        "options": {
+          "均衡 · Balanced": "均衡",
+          "速度优先 · Fast": "速度优先",
+          "质量优先 · Quality": "质量优先"
+        }
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "光流提供器"
+      },
+      "1": {
+        "name": "设置 JSON"
+      }
+    }
+  },
+  "DLSSExperimentalNVIDIAFlow": {
+    "display_name": "DLSS 光流 · NVIDIA",
+    "description": "原生 NVIDIA 硬件光流，不会静默回退到 DIS。需要宿主 helper 和驱动，不需要 Proton 或模型权重。Linux 已实测，Windows GPU 待验证。",
+    "inputs": {
+      "preset": {
+        "name": "计算档位",
+        "tooltip": "硬件光流的速度/质量预设，不是 NR 强度。",
+        "options": {
+          "均衡 · Balanced": "均衡",
+          "速度优先 · Fast": "速度优先",
+          "质量优先 · Quality": "质量优先"
+        }
+      },
+      "output_grid": {
+        "name": "输出网格",
+        "tooltip": "网格更小输出更密，不保证 NR 更好。不支持的选项明确报错。",
+        "options": {
+          "4 × 4（较省资源）": "4 × 4（较省资源）",
+          "2 × 2": "2 × 2",
+          "1 × 1（逐像素输出）": "1 × 1（逐像素输出）"
+        }
+      },
+      "temporal_hints": {
+        "name": "沿用相邻帧运动提示",
+        "tooltip": "切镜与新请求时重置；前后向估计各自保留历史。"
+      },
+      "device": {
+        "name": "CUDA 设备编号",
+        "tooltip": "原生光流 helper 使用的 CUDA 设备编号。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "光流提供器"
+      },
+      "1": {
+        "name": "设置 JSON"
+      }
+    }
+  },
+  "DLSSExperimentalPreviewSession": {
+    "display_name": "DLSS 预览会话",
+    "description": "生成节点内 A/B 预览及 VIDEO 输出。保存 video_b/video_a 保留本次预览的区间、单帧模式和尺寸，不会自动变成完整原尺寸视频。正式输出请使用独立的 Process Video → 保存视频。",
+    "inputs": {
+      "sequence": {
+        "name": "视频输入与引导",
+        "tooltip": "连接输入适配的 sequence，包含视频、色彩解释与光流设置。"
+      },
+      "runtime": {
+        "name": "运行时配置",
+        "tooltip": "选择运行库文件、宿主/Proton 与 Worker 生命周期。"
+      },
+      "profile_b": {
+        "name": "当前效果 B",
+        "tooltip": "当前调节的效果；video_b 输出其预览结果。"
+      },
+      "profile_a": {
+        "name": "对照效果 A（可选）",
+        "tooltip": "可选第二套效果。未接时是同尺寸同色彩的输入对照。连接后增加一次 NR，不会冻结参数。"
+      },
+      "start_time": {
+        "name": "预览起点（秒）",
+        "tooltip": "相对输入 VIDEO 起点的秒数；上游截取后从新起点计时。"
+      },
+      "duration": {
+        "name": "手动区间长度（秒）",
+        "tooltip": "到末尾模式忽略此值。否则为片段长度，遇输入末尾缩短；单帧时仅限制游标。不是结束时间、批大小或预热。"
+      },
+      "preview_scale": {
+        "name": "预览尺寸（百分比）",
+        "tooltip": "同时缩放宽高：50 约为四分之一像素，100 为输入尺寸。会改变 NR 输入与视频输出，不只是显示，也不是 SR。",
+        "options": {
+          "50": "50",
+          "75": "75",
+          "100": "100"
+        }
+      },
+      "contract": {
+        "name": "历史处理设置（可选）",
+        "tooltip": "仅配置历史处理。默认上下文 0.5 秒，新 Worker 预热 120 次，均不增加输出时长。"
+      },
+      "preview_mode": {
+        "name": "排队模式",
+        "tooltip": "Comfy 主运行按钮使用此模式。卡片按钮仅为本次指定单帧/片段，不改保存值、不运行下游保存。",
+        "options": {
+          "range": "选定片段",
+          "frame": "游标单帧"
+        }
+      },
+      "cursor_time": {
+        "name": "游标偏移（区间内秒）",
+        "tooltip": "区间内偏移；起点 10 加游标 1.5 取约 11.5 秒的帧。仅单帧使用，片段忽略。"
+      },
+      "process_to_end": {
+        "name": "处理到视频末尾",
+        "tooltip": "自动读取剩余时长；起点 0 为全视频。单帧按钮仍只输出一帧。保留帧数及磁盘容量检查。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "预览会话"
+      },
+      "1": {
+        "name": "状态 JSON"
+      },
+      "2": {
+        "name": "视频 B"
+      },
+      "3": {
+        "name": "视频 A"
+      }
+    }
+  },
+  "DLSSExperimentalCompareVideo": {
+    "display_name": "DLSS 对比视频（未实现）",
+    "description": "对比视频导出占位，尚未实现。浏览器内滑动、并排、交替及差异对比请使用 Preview Session。",
+    "inputs": {
+      "video_a": {
+        "name": "视频 A",
+        "tooltip": "对照视频；导出器未实现。"
+      },
+      "video_b": {
+        "name": "视频 B",
+        "tooltip": "处理后视频；导出器未实现。"
+      },
+      "mode": {
+        "name": "对比方式",
+        "tooltip": "预留导出布局，不是可执行的渲染设置。",
+        "options": {
+          "side_by_side": "并排",
+          "wipe": "滑动",
+          "flicker": "交替",
+          "difference": "差异"
+        }
+      },
+      "split_percent": {
+        "name": "分割位置（百分比）",
+        "tooltip": "预留分割位置；对比导出尚未实现。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "对比视频"
+      },
+      "1": {
+        "name": "诊断报告"
+      }
+    }
+  },
+  "DLSSExperimentalRenderContract": {
+    "display_name": "DLSS 历史设置",
+    "description": "内部时序处理设置，不决定输出时长。预热和前置上下文辅助 NR，不进入保存视频。输出区间在 Preview/Process 设置；连续处理，不按 duration 分批。",
+    "inputs": {
+      "warmup_frames": {
+        "name": "新实例预热次数",
+        "tooltip": "新 Worker 重复首帧 NR 评估的次数，不是输出帧数或批大小。兼容常驻实例复用初始化。"
+      },
+      "pre_roll": {
+        "name": "前置历史（秒，不输出）",
+        "tooltip": "输出起点前用于光流/NR 历史的真实上下文。不保存，也不会跨越上游截取起点。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "历史处理设置（可选）"
+      },
+      "1": {
+        "name": "历史设置 JSON"
+      }
+    }
+  },
+  "DLSSExperimentalProcessVideo": {
+    "display_name": "DLSS 处理视频",
+    "description": "独立于预览控制正式输出，生成 VIDEO 接保存视频。到末尾选项自动读取剩余时长。准备数据落盘并检查帧数和可用空间，不会固定截断到 30 秒。",
+    "inputs": {
+      "sequence": {
+        "name": "视频输入与引导",
+        "tooltip": "连接输入适配的 sequence，包含视频、色彩解释与光流设置。"
+      },
+      "runtime": {
+        "name": "运行时配置",
+        "tooltip": "选择运行库文件、宿主/Proton 与 Worker 生命周期。"
+      },
+      "profile": {
+        "name": "NR 效果",
+        "tooltip": "正式输出的效果，可与预览共用。"
+      },
+      "start_time": {
+        "name": "处理起点（秒）",
+        "tooltip": "相对输入 VIDEO 起点的秒数，独立于预览。"
+      },
+      "duration": {
+        "name": "处理时长（秒，0 = 剩余全部）",
+        "tooltip": "到末尾模式忽略此值。否则为指定时长，旧版 0 也表示剩余全部。需要足够磁盘。"
+      },
+      "scale": {
+        "name": "输出尺寸（百分比）",
+        "tooltip": "100 保持输入尺寸；50/75 同时缩小宽高。独立于预览，不是 DLSS 超分。",
+        "options": {
+          "50": "50",
+          "75": "75",
+          "100": "100"
+        }
+      },
+      "contract": {
+        "name": "历史处理设置（可选）",
+        "tooltip": "仅内部历史处理；正式输出区间由起点、时长与到末尾开关决定。"
+      },
+      "process_to_end": {
+        "name": "处理到视频末尾",
+        "tooltip": "从处理起点输出到输入末尾，忽略手动时长。起点 0、尺寸 100 为完整原尺寸输出。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "视频"
+      },
+      "1": {
+        "name": "诊断报告"
+      }
+    }
+  },
+  "DLSSExperimentalCarrierTest": {
+    "display_name": "DLSS 载体启动诊断",
+    "description": "可选 ReShade/RenoDX/D3D12 载体诊断。不渲染 NR 帧，也不是直接 NR 路线的必要步骤。",
+    "inputs": {
+      "runtime": {
+        "name": "运行时配置",
+        "tooltip": "需要 ReShade 诊断预设，不是直接 NR 视频预设。"
+      },
+      "present_count": {
+        "name": "诊断 Present 次数",
+        "tooltip": "诊断 swapchain 的 Present 次数，不是 NR 输出帧数。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "诊断后的运行时"
+      },
+      "1": {
+        "name": "诊断报告"
+      }
+    }
+  }
+}

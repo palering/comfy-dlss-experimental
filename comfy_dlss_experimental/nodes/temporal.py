@@ -51,21 +51,43 @@ class DLSSExperimentalPrepareTemporalSequence(io.ComfyNode):
                     io.Combo.Input("assumed_range", options=["tv", "pc"], default="tv", optional=True,
                                    tooltip="Assumed missing range: tv=limited, pc=full. No source file is modified."),
                     io.Boolean.Input("normalize_to_srgb", default=False, optional=True, display_name="统一为 sRGB（SDR）",
-                                     tooltip="Experimental: actually converts supported BT.709 input to sRGB before flow/NR; both comparison and result convert back on export. Already-sRGB passes through. Does not support HDR or override unknown tags; off preserves existing behavior.")],
+                                     tooltip="Experimental: actually converts supported BT.709 input to sRGB before flow/NR; both comparison and result convert back on export. Already-sRGB passes through. Does not support HDR or override unknown tags; off preserves existing behavior."),
+                    io.String.Input("ffmpeg_path", default="", optional=True, advanced=True,
+                                    tooltip="Optional absolute host executable or bin directory. Blank uses the Comfy backend PATH. No quotes or command arguments; not a Proton path."),
+                    io.String.Input("ffprobe_path", default="", optional=True, advanced=True,
+                                    tooltip="Optional absolute ffprobe executable or bin directory. Blank uses the explicit FFmpeg directory, otherwise backend PATH. Invalid explicit paths never fall back.")],
             outputs=[TemporalSequence.Output("sequence"), io.String.Output("report")],
             is_output_node=True, is_experimental=True)
 
     @classmethod
-    def execute(cls, video, settings, color_policy="strict", assumed_transfer="bt709", assumed_range="tv", normalize_to_srgb=False):
+    def execute(cls, video, settings, color_policy="strict", assumed_transfer="bt709", assumed_range="tv", normalize_to_srgb=False,
+                ffmpeg_path="", ffprobe_path=""):
         from dataclasses import asdict
+        from datetime import datetime, timezone
         from ..node_execution import interrupted
         guide_settings(settings)
         policy = InputColorPolicy(color_policy, assumed_transfer, assumed_range, normalize_to_srgb)
         policy.validate()
-        report = inspect_video_input(video, policy, settings.get("motion_provider", "dis"), cancelled=interrupted)
+        from ..media_tools import resolve_media_tools
+        tools_config = {"ffmpeg_path": ffmpeg_path, "ffprobe_path": ffprobe_path}
+        tools = resolve_media_tools(tools_config)
+        if tools["ffprobe"]["available"]:
+            report = inspect_video_input(video, policy, settings.get("motion_provider", "dis"),
+                                         cancelled=interrupted, ffprobe=tools["ffprobe"]["path"])
+        else:
+            report = {"schema_version": 1, "checked_at": datetime.now(timezone.utc).isoformat(),
+                      "ready": False, "state": "unreadable", "issues": [], "policy": asdict(policy),
+                      "header_readable": False, "runtime_status": "not_probed",
+                      "decode_validation": "not_run", "timing_validation": "not_run"}
+        report["media_tools"] = tools
+        if not tools["ready"]:
+            report.update(ready=False, state="unreadable")
+            for name in ("ffmpeg", "ffprobe"):
+                if not tools[name]["available"]:
+                    report.setdefault("issues", []).append({"kind": "media_tool", "message": tools[name]["error"]})
         active = report.get("active_view", {})
         public = {"width": active.get("width"), "height": active.get("height"), "duration": active.get("duration"),
                   "guide_state": "lazy_range_cache", "settings": settings}
         sequence = {"schema_version": 2, "video": video, "public": public, "settings": settings,
-                    "color_policy": asdict(policy), "input_report": report}
+                    "color_policy": asdict(policy), "input_report": report, "media_tools_config": tools_config}
         return io.NodeOutput(sequence, json.dumps(report, ensure_ascii=False, indent=2), ui={"dlss_input_report": [report]})

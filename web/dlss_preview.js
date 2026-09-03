@@ -1,3 +1,5 @@
+import { t, bindText, disposeTranslations, onLocaleChange } from "./i18n.js";
+import { stages } from "./runtime_monitor_state.js";
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { acceptSession, previewRequest, previewRangeDuration } from "./preview_state.js";
@@ -10,7 +12,8 @@ const cards = new Set();
 function element(tag, className, text) {
   const value = document.createElement(tag);
   if (className) value.className = className;
-  if (text !== undefined) value.textContent = text;
+  if (typeof text === "function") bindText(value, text);
+  else if (text !== undefined) value.textContent = text;
   return value;
 }
 function stylesheet() {
@@ -40,23 +43,23 @@ function attach(node) {
   const root = element("div", "dlss-node-preview-root");
   const card = element("section", "dlss-node-preview-card");
   const header = element("header", "dlss-node-preview-header");
-  const heading = element("strong", "dlss-node-preview-title", "DLSS A/B Preview");
-  const status = element("span", "dlss-node-preview-status", "待预览");
+  const heading = element("strong", "dlss-node-preview-title", () => t("DLSS A/B Preview"));
+  const status = element("span", "dlss-node-preview-status", () => t("待预览"));
   status.setAttribute("aria-live", "polite");
   header.append(heading, status);
   const actions = element("div", "dlss-node-preview-actions");
-  const frameQueue = element("button", "dlss-node-preview-button is-primary", "渲染当前帧");
-  frameQueue.title = "只输出起点 + 游标偏移处的一帧，仍处理前置历史；不执行下游保存节点。运动效果请渲染片段。";
-  const queue = element("button", "dlss-node-preview-button", "渲染片段");
-  queue.title = "从预览起点生成指定区间长度的片段，使用预览尺寸；不执行下游保存节点。";
-  const cancel = element("button", "dlss-node-preview-button", "取消");
+  const frameQueue = element("button", "dlss-node-preview-button is-primary", () => t("渲染当前帧"));
+  bindText(frameQueue, () => t("只输出起点 + 游标偏移处的一帧，仍处理前置历史；不执行下游保存节点。运动效果请渲染片段。"), "title");
+  const queue = element("button", "dlss-node-preview-button", () => t("渲染片段"));
+  bindText(queue, () => t("从预览起点生成指定区间长度的片段，使用预览尺寸；不执行下游保存节点。"), "title");
+  const cancel = element("button", "dlss-node-preview-button", () => t("取消"));
   frameQueue.type = queue.type = cancel.type = "button";
   actions.append(frameQueue, queue, cancel);
   const modes = element("div", "dlss-node-preview-modes");
   const modeButtons = new Map();
-  modes.setAttribute("role", "group"); modes.setAttribute("aria-label", "对比方式");
+  modes.setAttribute("role", "group"); bindText(modes, () => t("对比方式"), "ariaLabel");
   for (const [key, label] of [["wipe", "滑动对比"], ["side", "并排"], ["flicker", "交替"], ["difference", "差异"]]) {
-    const button = element("button", "dlss-node-preview-mode", label);
+    const button = element("button", "dlss-node-preview-mode", () => t(label));
     button.type = "button";
     button.onclick = () => { state.mode = key; update(); };
     modeButtons.set(key, button);
@@ -75,16 +78,16 @@ function attach(node) {
   const divider = element("div", "dlss-node-preview-divider");
   divider.append(element("span", "dlss-node-preview-handle", "↔"));
   const empty = element("div", "dlss-node-preview-empty");
-  const message = element("strong", "dlss-node-preview-empty-title", "先看一帧，再检查运动");
-  const detail = element("span", "dlss-node-preview-empty-body", "Only this node and its dependencies are queued.");
+  const message = element("strong", "dlss-node-preview-empty-title", () => t("先看一帧，再检查运动"));
+  const detail = element("span", "dlss-node-preview-empty-body", () => t("Only this node and its dependencies are queued."));
   empty.append(message, detail);
   viewer.append(videoA, videoB, labelA, labelB, divider, empty);
   const controls = element("div", "dlss-node-preview-controls");
-  const play = element("button", "dlss-node-preview-button", "播放");
+  const play = element("button", "dlss-node-preview-button", () => t("播放"));
   play.type = "button";
   const split = element("input", "dlss-node-preview-slider");
   split.type = "range"; split.min = "0"; split.max = "100"; split.value = "50";
-  split.setAttribute("aria-label", "A/B split");
+  bindText(split, () => t("A/B split"), "ariaLabel");
   const splitText = element("span", "dlss-node-preview-split-label", "50%");
   split.oninput = () => { state.split = Number(split.value); update(); };
   controls.append(split, splitText);
@@ -92,10 +95,10 @@ function attach(node) {
   const previous = element("button", "dlss-node-preview-button", "−1");
   const next = element("button", "dlss-node-preview-button", "+1");
   previous.type = next.type = "button";
-  previous.setAttribute("aria-label", "Previous frame"); next.setAttribute("aria-label", "Next frame");
+  bindText(previous, () => t("Previous frame"), "ariaLabel"); bindText(next, () => t("Next frame"), "ariaLabel");
   const seek = element("input", "dlss-node-preview-slider");
   seek.type = "range"; seek.min = "0"; seek.max = "0"; seek.step = "1"; seek.value = "0";
-  seek.setAttribute("aria-label", "预览游标");
+  bindText(seek, () => t("预览游标"), "ariaLabel");
   const timeLabel = element("span", "dlss-node-preview-split-label", "0 / 0");
   timeline.append(play, previous, seek, next, timeLabel);
   const summary = element("div", "dlss-node-preview-summary");
@@ -103,24 +106,28 @@ function attach(node) {
   const notice = element("p", "dlss-node-preview-notice", previewOutputNotice);
   const rangeNotice = element("p", "dlss-node-preview-notice");
   const help = element("details", "dlss-node-preview-help");
-  help.append(element("summary", "", "参数与保存说明"));
+  help.append(element("summary", "", () => t("参数与保存说明")));
   const definitions = element("dl", "");
-  for (const [label, explanation] of previewParameterHelp) {
-    definitions.append(element("dt", "", label), element("dd", "", explanation));
+  function renderHelp() {
+    definitions.replaceChildren();
+    for (const [label, explanation] of previewParameterHelp()) {
+      definitions.append(element("dt", "", label), element("dd", "", explanation));
+    }
   }
+  renderHelp();
   help.append(definitions); guidance.append(rangeNotice, notice, help);
   const diagnostics = element("details", "dlss-node-preview-diagnostics");
   diagnostics.addEventListener("toggle", () => card.classList.toggle("has-diagnostics", diagnostics.open));
-  diagnostics.append(element("summary", "", "本次任务详情"));
+  diagnostics.append(element("summary", "", () => t("本次任务详情")));
   const copyActions = element("div", "dlss-node-preview-controls dlss-node-preview-copy-actions");
-  const copy = element("button", "dlss-node-preview-button", "复制任务详情");
+  const copy = element("button", "dlss-node-preview-button", () => t("复制任务详情"));
   copy.type = "button";
-  copy.title = "复制本次执行的参数、耗时、缓存和环境信息（含本地路径，公开分享前请检查）";
+  bindText(copy, () => t("复制本次执行的参数、耗时、缓存和环境信息（含本地路径，公开分享前请检查）"), "title");
   const copyStatus = element("span", "dlss-node-preview-copy-status");
   copyStatus.setAttribute("role", "status");
   const copyText = element("textarea", "dlss-node-preview-copy-text");
   copyText.readOnly = true; copyText.hidden = true; copyText.rows = 7;
-  copyText.setAttribute("aria-label", "任务详情（自动复制受限时，可全选后手动复制）");
+  bindText(copyText, () => t("任务详情（自动复制受限时，可全选后手动复制）"), "ariaLabel");
   copyText.addEventListener("keydown", event => event.stopPropagation());
   copyText.addEventListener("keyup", event => event.stopPropagation());
   let copying = false;
@@ -128,21 +135,21 @@ function attach(node) {
     if (!state.session || copying) return;
     // Take a snapshot before clipboard permission prompts or a new session arrives.
     const session = state.session;
-    copying = true; copy.disabled = true; copyStatus.textContent = "正在复制…";
+    copying = true; copy.disabled = true; copyStatus.textContent = t("正在复制…");
     copyText.hidden = true; copyText.value = "";
     try {
       const result = await copyDiagnosticText(formatPreviewDiagnostics(session), {
         clipboard: navigator.clipboard, document, textbox: copyText,
       });
       if (result === "copied") {
-        copyStatus.textContent = "已复制，可直接粘贴发送";
+        copyStatus.textContent = t("已复制，可直接粘贴发送");
       } else if (result === "manual") {
-        copyStatus.textContent = "自动复制受限，详情已选中，请按 ⌘C / Ctrl+C";
+        copyStatus.textContent = t("自动复制受限，详情已选中，请按 ⌘C / Ctrl+C");
       } else {
-        copyStatus.textContent = "复制未完成，请重试";
+        copyStatus.textContent = t("复制未完成，请重试");
       }
     } catch {
-      copyStatus.textContent = "复制未完成，请重试";
+      copyStatus.textContent = t("复制未完成，请重试");
     } finally {
       copying = false; copy.disabled = !state.session;
     }
@@ -170,10 +177,10 @@ function attach(node) {
       widget("process_to_end")?.value === true, Number.isFinite(total) ? total : null);
   };
   const cursorFrames = () => Math.max(1, Math.ceil((rangeDuration() ?? 0) * rate()));
-  const cursorLabel = () => state.cursor.toFixed(2) + "s / " + (rangeDuration() === null ? "执行时读取末尾" : rangeDuration().toFixed(2) + "s");
+  const cursorLabel = () => state.cursor.toFixed(2) + "s / " + (rangeDuration() === null ? t("执行时读取末尾") : rangeDuration().toFixed(2) + "s");
   const hasMedia = () => Boolean(videoA.dataset.source && videoB.dataset.source);
   function pause() {
-    videoA.pause(); videoB.pause(); play.textContent = "播放";
+    videoA.pause(); videoB.pause(); play.textContent = t("播放");
   }
   function setFrame(index) {
     pause();
@@ -208,23 +215,23 @@ function attach(node) {
     play.disabled = !hasMedia() || frameCount() <= 1;
     for (const control of [seek, previous, next]) control.disabled = Boolean(busy || state.queued || rangeDuration() === null);
     labelA.hidden = labelB.hidden = !hasMedia();
-    labelA.textContent = "A · " + (session?.labels?.a || "Original");
-    labelB.textContent = "B · " + (session?.labels?.b || "NR");
+    labelA.textContent = "A · " + t(session?.labels?.a || "Original");
+    labelB.textContent = "B · " + t(session?.labels?.b || "NR");
     const progress = session?.progress;
-    status.textContent = state.queued ? "已排队" : session?.state === "ready" ? "已完成" :
-      busy && progress ? progress.stage.replaceAll("_", " ") + (progress.total ? " " + progress.done + "/" + progress.total : "") :
-      session?.state || "待预览";
+    status.textContent = state.queued ? t("已排队") : session?.state === "ready" ? t("已完成") :
+      busy && progress ? (stages()[progress.stage] || t(progress.stage)) + (progress.total ? " " + progress.done + "/" + progress.total : "") :
+      t(session?.state || "待预览");
     status.dataset.state = session?.state || "empty";
-    message.textContent = session?.error || (busy ? "正在准备预览…" : "先看一帧，再检查运动");
-    detail.textContent = busy ? "可取消本次预览；已有画面是上次结果。" :
-      "拖动下方游标定位，渲染当前帧调效果；渲染片段检查时序稳定性。";
+    message.textContent = session?.error || (busy ? t("正在准备预览…") : t("先看一帧，再检查运动"));
+    detail.textContent = busy ? t("可取消本次预览；已有画面是上次结果。") :
+      t("拖动下方游标定位，渲染当前帧调效果；渲染片段检查时序稳定性。");
     viewer.dataset.mode = state.mode;
     viewer.style.setProperty("--dlss-preview-split", state.split + "%");
     videoB.hidden = state.mode === "flicker" && !state.showB;
     divider.hidden = !hasMedia() || state.mode !== "wipe";
     split.hidden = state.mode !== "wipe";
     split.value = String(state.split);
-    splitText.textContent = state.mode === "wipe" ? Math.round(state.split) + "%" : state.mode;
+    splitText.textContent = state.mode === "wipe" ? Math.round(state.split) + "%" : t(state.mode);
     for (const [key, button] of modeButtons) {
       button.classList.toggle("is-active", key === state.mode);
       button.setAttribute("aria-pressed", String(key === state.mode));
@@ -232,27 +239,27 @@ function attach(node) {
     seek.max = String(cursorFrames() - 1);
     if (!hasMedia()) timeLabel.textContent = cursorLabel();
     rangeNotice.textContent = widget("process_to_end")?.value === true
-      ? "已选处理到末尾：忽略手动长度；起点 0 = 全视频。单帧按钮仍只输出一帧。范围以执行时读取的输入为准。"
-      : "手动区间：使用上方长度。要处理全部剩余时间，请勾选“处理到视频末尾”。";
+      ? t("已选处理到末尾：忽略手动长度；起点 0 = 全视频。单帧按钮仍只输出一帧。范围以执行时读取的输入为准。")
+      : t("手动区间：使用上方长度。要处理全部剩余时间，请勾选“处理到视频末尾”。");
     const execution = session?.execution;
     copy.disabled = !session || copying;
-    summary.textContent = session ? "本次输出 " + Number(session.duration).toFixed(3) + "s · " + (session.source?.width || "?") + "×" +
-      (session.source?.height || "?") + (session.preview_mode === "frame" ? " · 单帧 @ " + Number(session.selected_start).toFixed(2) + "s" : " · 片段") +
-      (session.preview_mode === "frame" ? "" : " · 输入起点 " + Number(session.start_time).toFixed(2) + "s") +
-      (session.guide_cache_hit ? " · 颜色/光流缓存已复用" : "") +
-      (execution ? " · 总耗时 " + execution.elapsed_seconds.toFixed(2) + "s" : "") : "节点内 A/B · SDR";
-    timing.textContent = execution ? Object.entries(execution.stage_seconds || {}).map(([k, v]) => k + ": " + v.toFixed(3) + "s").join("\n") +
-      "\n任务 " + execution.execution_id + "\n主机墙钟耗时，非纯 GPU 推理时间；颜色、光流和缓存写入是输入准备的子项，请勿重复相加。" : "运行后显示准备、启动、预热、逐帧处理、编码和清理耗时。";
+    summary.textContent = session ? t("本次输出 ") + Number(session.duration).toFixed(3) + "s · " + (session.source?.width || "?") + "×" +
+      (session.source?.height || "?") + (session.preview_mode === "frame" ? t(" · 单帧 @ ") + Number(session.selected_start).toFixed(2) + "s" : t(" · 片段")) +
+      (session.preview_mode === "frame" ? "" : t(" · 输入起点 ") + Number(session.start_time).toFixed(2) + "s") +
+      (session.guide_cache_hit ? t(" · 颜色/光流缓存已复用") : "") +
+      (execution ? t(" · 总耗时 ") + execution.elapsed_seconds.toFixed(2) + "s" : "") : t("节点内 A/B · SDR");
+    timing.textContent = execution ? Object.entries(execution.stage_seconds || {}).map(([k, v]) => (stages()[k] || k) + ": " + v.toFixed(3) + "s").join("\n") +
+      t("\n任务 ") + execution.execution_id + t("\n主机墙钟耗时，非纯 GPU 推理时间；颜色、光流和缓存写入是输入准备的子项，请勿重复相加。") : t("运行后显示准备、启动、预热、逐帧处理、编码和清理耗时。");
   }
   const binding = {
     executionError(payload) {
       if (!state.promptId || payload?.prompt_id !== state.promptId) return;
       state.queued = false;
       if (state.session && ["preparing", "rendering"].includes(state.session.state)) {
-        state.session = { ...state.session, state:"failed", error:payload.exception_message || "任务被中断" };
+        state.session = { ...state.session, state:"failed", error:payload.exception_message || t("任务被中断") };
       }
-      update(); status.textContent = "执行未完成";
-      message.textContent = payload.exception_message || "任务被中断";
+      update(); status.textContent = t("执行未完成");
+      message.textContent = payload.exception_message || t("任务被中断");
       empty.hidden = false;
     },
     apply(payload) {
@@ -271,14 +278,14 @@ function attach(node) {
     state.queued = true; update();
     try {
       const graph = await app.graphToPrompt();
-      if (!Object.hasOwn(graph.output, String(node.id))) throw new Error("Use Comfy queue controls for previews inside subgraphs.");
+      if (!Object.hasOwn(graph.output, String(node.id))) throw new Error(t("Use Comfy queue controls for previews inside subgraphs."));
       const length = rangeDuration();
       const typedCursor = Number(widget("cursor_time")?.value ?? state.cursor);
       const cursor = Math.max(0, widget("process_to_end")?.value === true || length === null
         ? typedCursor : Math.min(typedCursor, length - 1 / rate()));
       const queued = await api.queuePrompt(0, { workflow: graph.workflow, output: previewRequest(graph.output, node.id, mode, cursor) });
       state.promptId = queued.prompt_id;
-      status.textContent = "已排队";
+      status.textContent = t("已排队");
     } catch (error) {
       message.textContent = error.message || JSON.stringify(error);
       empty.hidden = false;
@@ -293,8 +300,8 @@ function attach(node) {
     cancel.disabled = true;
     try {
       const response = await api.fetchApi("/dlss-experimental/preview/sessions/" + encodeURIComponent(id) + "/cancel", { method: "POST" });
-      if (!response.ok) throw new Error("Cancel request failed");
-      status.textContent = "Cancelling";
+      if (!response.ok) throw new Error(t("Cancel request failed"));
+      status.textContent = t("Cancelling");
     } catch (error) { status.textContent = error.message; cancel.disabled = false; }
   };
   play.onclick = async () => {
@@ -304,12 +311,12 @@ function attach(node) {
       videoA.currentTime = videoB.currentTime = 0;
     } else videoB.currentTime = videoA.currentTime;
     const outcomes = await Promise.allSettled([videoA.play(), videoB.play()]);
-    if (outcomes.some((outcome) => outcome.status === "rejected")) { pause(); status.textContent = "Playback unavailable"; }
-    else play.textContent = "暂停";
+    if (outcomes.some((outcome) => outcome.status === "rejected")) { pause(); status.textContent = t("Playback unavailable"); }
+    else play.textContent = t("暂停");
   };
   for (const video of [videoA, videoB]) {
     video.addEventListener("loadedmetadata", () => { video.currentTime = 0; });
-    video.addEventListener("error", () => { status.textContent = "Media unavailable — render preview again"; });
+    video.addEventListener("error", () => { status.textContent = t("Media unavailable — render preview again"); });
   }
   videoA.addEventListener("ended", pause);
   videoB.addEventListener("ended", pause);
@@ -383,7 +390,12 @@ function attach(node) {
     };
   }
   const oldRemoved = node.onRemoved;
+  const unsubscribe = onLocaleChange(() => {
+    renderHelp(); update();
+    play.textContent = videoA.paused ? t("播放") : t("暂停");
+  });
   node.onRemoved = function (...args) {
+    unsubscribe(); disposeTranslations(root);
     cards.delete(binding); clearInterval(flicker); pause();
     for (const video of [videoA, videoB]) { video.removeAttribute("src"); video.load(); }
     return oldRemoved?.apply(this, args);

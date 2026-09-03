@@ -103,6 +103,11 @@ class ColorPolicyTests(unittest.TestCase):
                 for _look_strength in (.25, .5, .75):
                     self.assertTrue(cached(on)[2])  # Effect parameters never enter this API/key.
                 self.assertEqual(conversion.call_count, 2)
+                with patch("comfy_dlss_experimental.video_pipeline.media_tool_identity", return_value={"version": "changed"}):
+                    self.assertFalse(cached(on)[2])
+                    self.assertTrue(cached(on)[2])
+                    self.assertEqual(conversion.call_count, 3)
+                self.assertTrue(cached(on)[2])  # Original tool identity still has its own entry.
                 self.assertFalse(cached(on, ClipRequest(scale=.5))[2])
                 video.write_bytes(b"changed")
                 self.assertFalse(cached(on)[2])

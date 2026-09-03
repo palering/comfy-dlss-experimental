@@ -10,7 +10,7 @@ from .input_policy import InputColorPolicy, analyze_media
 from .media_clip import inspect_media
 
 
-def inspect_video_input(video, policy: InputColorPolicy, guide_mode: str, cancelled=None) -> dict:
+def inspect_video_input(video, policy: InputColorPolicy, guide_mode: str, cancelled=None, *, ffprobe=None) -> dict:
     from comfy_api.latest import InputImpl
     public = {"schema_version": 1, "checked_at": datetime.now(timezone.utc).isoformat(),
               "policy": asdict(policy), "guide_mode": guide_mode, "guide_state": "deferred_to_consumer",
@@ -25,7 +25,7 @@ def inspect_video_input(video, policy: InputColorPolicy, guide_mode: str, cancel
             if isinstance(source, (str, Path)):
                 source = Path(source).resolve(strict=True)
                 public["filename"] = source.name
-                report = analyze_media(inspect_media(source, cancelled=cancelled), policy)
+                report = analyze_media(inspect_media(source, ffprobe, cancelled=cancelled), policy)
                 public.update(report)
                 public.pop("resolved_video", None)
                 start, duration = video.get_active_trim_window()
