@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "renodx-dlss5-example",
+  "kind": "renodx-dlss5",
+  "version": "replace-with-exact-version",
+  "source_note": "Record the original download source and whether this build was supplied with a matching DLSSNR runtime.",
+  "files": {
+    "addon": "renodx-dlss5.addon64"
+  },
+  "compatibility": {
+    "architecture": "windows-x64"
+  }
+}

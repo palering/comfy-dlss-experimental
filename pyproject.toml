@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "comfy-dlss-experimental"
+version = "0.2.0.dev1"
+description = "Experimental ComfyUI nodes for external DLSS neural-rendering runtimes"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/palering/comfy-dlss-experimental"
+Issues = "https://github.com/palering/comfy-dlss-experimental/issues"
+
+[tool.setuptools.packages.find]
+include = ["comfy_dlss_experimental*"]

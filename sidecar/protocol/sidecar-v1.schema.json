@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/comfy-dlss-experimental/sidecar-v1.schema.json",
+  "title": "DLSS Experimental Sidecar Message",
+  "type": "object",
+  "required": ["protocol", "type", "request_id"],
+  "properties": {
+    "protocol": { "const": "comfy-dlss-sidecar/1" },
+    "type": {
+      "enum": ["hello", "probe", "configure", "process", "reset", "shutdown", "result", "error"]
+    },
+    "request_id": { "type": "string", "minLength": 1 },
+    "payload": { "type": "object" }
+  },
+  "additionalProperties": false
+}

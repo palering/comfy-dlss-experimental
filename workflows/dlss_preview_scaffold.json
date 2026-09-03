@@ -1,0 +1,257 @@
+{
+  "id": "cff3995d-58df-4b74-b2ba-77311c0777ce",
+  "revision": 0,
+  "last_node_id": 10,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadVideo",
+      "pos": [-700, -100],
+      "size": [300, 330],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {"name": "file", "type": "COMBO", "widget": {"name": "file"}, "link": null},
+        {"name": "upload", "type": "IMAGEUPLOAD", "widget": {"name": "upload"}, "link": null}
+      ],
+      "outputs": [{"name": "VIDEO", "type": "VIDEO", "links": [1]}],
+      "properties": {"Node name for S&R": "LoadVideo", "cnr_id": "comfy-core"},
+      "widgets_values": ["0.mp4", "image"]
+    },
+    {
+      "id": 2,
+      "type": "DLSSExperimentalRuntimeProbe",
+      "pos": [-700, -520],
+      "size": [330, 120],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {"name": "include_diagnostics", "type": "BOOLEAN", "widget": {"name": "include_diagnostics"}, "link": null}
+      ],
+      "outputs": [
+        {"name": "catalog", "type": "DLSS5_RUNTIME_CATALOG", "links": [2]},
+        {"name": "report", "type": "STRING", "links": null}
+      ],
+      "properties": {"Node name for S&R": "DLSSExperimentalRuntimeProbe", "cnr_id": "comfy-dlss-experimental"},
+      "widgets_values": [true]
+    },
+    {
+      "id": 3,
+      "type": "DLSSExperimentalRuntimeConfig",
+      "pos": [-250, -520],
+      "size": [390, 240],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {"name": "backend", "type": "COMBO", "widget": {"name": "backend"}, "link": null},
+        {"name": "proton", "type": "COMBO", "widget": {"name": "proton"}, "link": null},
+        {"name": "linux_display_backend", "type": "COMBO", "widget": {"name": "linux_display_backend"}, "link": null},
+        {"name": "worker_policy", "type": "COMBO", "widget": {"name": "worker_policy"}, "link": null},
+        {"name": "runtime_preset", "type": "STRING", "widget": {"name": "runtime_preset"}, "link": null},
+        {"name": "catalog", "type": "DLSS5_RUNTIME_CATALOG", "link": 2}
+      ],
+      "outputs": [
+        {"name": "runtime", "type": "DLSS5_RUNTIME", "links": [4]},
+        {"name": "status", "type": "STRING", "links": null}
+      ],
+      "properties": {"Node name for S&R": "DLSSExperimentalRuntimeConfig", "cnr_id": "comfy-dlss-experimental"},
+      "widgets_values": ["auto", "auto", "auto", "isolated", "runtime-presets/default.json"]
+    },
+    {
+      "id": 4,
+      "type": "DLSSExperimentalTemporalSettings",
+      "pos": [-300, -120],
+      "size": [390, 330],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {"name": "motion_provider", "type": "COMBO", "widget": {"name": "motion_provider"}, "link": null},
+        {"name": "depth_provider", "type": "COMBO", "widget": {"name": "depth_provider"}, "link": null},
+        {"name": "analysis_scale", "type": "INT", "widget": {"name": "analysis_scale"}, "link": null},
+        {"name": "scene_cut_threshold", "type": "FLOAT", "widget": {"name": "scene_cut_threshold"}, "link": null},
+        {"name": "validate_motion", "type": "BOOLEAN", "widget": {"name": "validate_motion"}, "link": null},
+        {"name": "depth_tolerance", "type": "FLOAT", "widget": {"name": "depth_tolerance"}, "link": null},
+        {"name": "consistency_tolerance", "type": "FLOAT", "widget": {"name": "consistency_tolerance"}, "link": null},
+        {"name": "motion_sign_x", "type": "COMBO", "widget": {"name": "motion_sign_x"}, "link": null},
+        {"name": "motion_sign_y", "type": "COMBO", "widget": {"name": "motion_sign_y"}, "link": null}
+      ],
+      "outputs": [
+        {"name": "settings", "type": "DLSSE_TEMPORAL_SETTINGS", "links": [3]},
+        {"name": "settings_json", "type": "STRING", "links": null}
+      ],
+      "properties": {"Node name for S&R": "DLSSExperimentalTemporalSettings", "cnr_id": "comfy-dlss-experimental"},
+      "widgets_values": ["auto_offline", "stabilized_proxy", 50, 0.35, true, 0.02, 1.0, 1, 1]
+    },
+    {
+      "id": 10,
+      "type": "DLSSExperimentalCarrierTest",
+      "pos": [220, -520],
+      "size": [390, 170],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {"name": "runtime", "type": "DLSS5_RUNTIME", "link": 4},
+        {"name": "present_count", "type": "INT", "widget": {"name": "present_count"}, "link": null}
+      ],
+      "outputs": [
+        {"name": "verified_runtime", "type": "DLSS5_RUNTIME", "links": [9]},
+        {"name": "report", "type": "STRING", "links": null}
+      ],
+      "properties": {"Node name for S&R": "DLSSExperimentalCarrierTest", "cnr_id": "comfy-dlss-experimental"},
+      "widgets_values": [180]
+    },
+    {
+      "id": 5,
+      "type": "DLSSExperimentalPrepareTemporalSequence",
+      "pos": [250, -80],
+      "size": [380, 150],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {"name": "video", "type": "VIDEO", "link": 1},
+        {"name": "settings", "type": "DLSSE_TEMPORAL_SETTINGS", "link": 3}
+      ],
+      "outputs": [
+        {"name": "sequence", "type": "DLSSE_TEMPORAL_SEQUENCE", "links": [5]},
+        {"name": "report", "type": "STRING", "links": null}
+      ],
+      "properties": {"Node name for S&R": "DLSSExperimentalPrepareTemporalSequence", "cnr_id": "comfy-dlss-experimental"},
+      "widgets_values": []
+    },
+    {
+      "id": 6,
+      "type": "DLSSExperimentalRenderContract",
+      "pos": [250, 170],
+      "size": [380, 330],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {"name": "mode", "type": "COMBO", "widget": {"name": "mode"}, "link": null},
+        {"name": "custom_render_scale", "type": "INT", "widget": {"name": "custom_render_scale"}, "link": null},
+        {"name": "ngx_preset", "type": "COMBO", "widget": {"name": "ngx_preset"}, "link": null},
+        {"name": "hdr", "type": "COMBO", "widget": {"name": "hdr"}, "link": null},
+        {"name": "depth_inverted", "type": "COMBO", "widget": {"name": "depth_inverted"}, "link": null},
+        {"name": "warmup_frames", "type": "INT", "widget": {"name": "warmup_frames"}, "link": null},
+        {"name": "create_delay_frames", "type": "INT", "widget": {"name": "create_delay_frames"}, "link": null},
+        {"name": "mv_scale_x", "type": "FLOAT", "widget": {"name": "mv_scale_x"}, "link": null},
+        {"name": "mv_scale_y", "type": "FLOAT", "widget": {"name": "mv_scale_y"}, "link": null}
+      ],
+      "outputs": [
+        {"name": "contract", "type": "DLSS5_RENDER_CONTRACT", "links": [6]},
+        {"name": "contract_json", "type": "STRING", "links": null}
+      ],
+      "properties": {"Node name for S&R": "DLSSExperimentalRenderContract", "cnr_id": "comfy-dlss-experimental"},
+      "widgets_values": ["dlaa", 100, "default", "auto", "auto", 30, 60, 1.0, 1.0]
+    },
+    {
+      "id": 7,
+      "type": "DLSSExperimentalNRProfile",
+      "title": "Pinned Look (A)",
+      "pos": [720, -420],
+      "size": [370, 350],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {"name": "neural_uplift", "type": "BOOLEAN", "widget": {"name": "neural_uplift"}, "link": null},
+        {"name": "nr_enabled", "type": "BOOLEAN", "widget": {"name": "nr_enabled"}, "link": null},
+        {"name": "style", "type": "STRING", "widget": {"name": "style"}, "link": null},
+        {"name": "intensity", "type": "FLOAT", "widget": {"name": "intensity"}, "link": null},
+        {"name": "local_structure", "type": "FLOAT", "widget": {"name": "local_structure"}, "link": null},
+        {"name": "local_tone", "type": "FLOAT", "widget": {"name": "local_tone"}, "link": null},
+        {"name": "auto_mask", "type": "BOOLEAN", "widget": {"name": "auto_mask"}, "link": null},
+        {"name": "mask_strength", "type": "FLOAT", "widget": {"name": "mask_strength"}, "link": null},
+        {"name": "ui_correction", "type": "FLOAT", "widget": {"name": "ui_correction"}, "link": null}
+      ],
+      "outputs": [
+        {"name": "profile", "type": "DLSS5_NR_PROFILE", "links": [8]},
+        {"name": "profile_json", "type": "STRING", "links": null}
+      ],
+      "properties": {"Node name for S&R": "DLSSExperimentalNRProfile", "cnr_id": "comfy-dlss-experimental"},
+      "widgets_values": [true, true, "runtime_default", 0.75, 0.8, 0.0, true, 1.0, 0.0]
+    },
+    {
+      "id": 8,
+      "type": "DLSSExperimentalNRProfile",
+      "title": "Working Look (B)",
+      "pos": [720, 10],
+      "size": [370, 350],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {"name": "neural_uplift", "type": "BOOLEAN", "widget": {"name": "neural_uplift"}, "link": null},
+        {"name": "nr_enabled", "type": "BOOLEAN", "widget": {"name": "nr_enabled"}, "link": null},
+        {"name": "style", "type": "STRING", "widget": {"name": "style"}, "link": null},
+        {"name": "intensity", "type": "FLOAT", "widget": {"name": "intensity"}, "link": null},
+        {"name": "local_structure", "type": "FLOAT", "widget": {"name": "local_structure"}, "link": null},
+        {"name": "local_tone", "type": "FLOAT", "widget": {"name": "local_tone"}, "link": null},
+        {"name": "auto_mask", "type": "BOOLEAN", "widget": {"name": "auto_mask"}, "link": null},
+        {"name": "mask_strength", "type": "FLOAT", "widget": {"name": "mask_strength"}, "link": null},
+        {"name": "ui_correction", "type": "FLOAT", "widget": {"name": "ui_correction"}, "link": null}
+      ],
+      "outputs": [
+        {"name": "profile", "type": "DLSS5_NR_PROFILE", "links": [7]},
+        {"name": "profile_json", "type": "STRING", "links": null}
+      ],
+      "properties": {"Node name for S&R": "DLSSExperimentalNRProfile", "cnr_id": "comfy-dlss-experimental"},
+      "widgets_values": [true, true, "runtime_default", 1.0, 1.0, 0.0, true, 1.0, 0.0]
+    },
+    {
+      "id": 9,
+      "type": "DLSSExperimentalPreviewSession",
+      "pos": [1220, -80],
+      "size": [560, 720],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {"name": "sequence", "type": "DLSSE_TEMPORAL_SEQUENCE", "link": 5},
+        {"name": "runtime", "type": "DLSS5_RUNTIME", "link": 9},
+        {"name": "contract", "type": "DLSS5_RENDER_CONTRACT", "link": 6},
+        {"name": "profile_b", "type": "DLSS5_NR_PROFILE", "link": 7},
+        {"name": "start_time", "type": "FLOAT", "widget": {"name": "start_time"}, "link": null},
+        {"name": "duration", "type": "FLOAT", "widget": {"name": "duration"}, "link": null},
+        {"name": "preview_scale", "type": "COMBO", "widget": {"name": "preview_scale"}, "link": null},
+        {"name": "profile_a", "type": "DLSS5_NR_PROFILE", "link": 8}
+      ],
+      "outputs": [
+        {"name": "session", "type": "DLSS5_PREVIEW_SESSION", "links": null},
+        {"name": "status", "type": "STRING", "links": null}
+      ],
+      "properties": {"Node name for S&R": "DLSSExperimentalPreviewSession", "cnr_id": "comfy-dlss-experimental"},
+      "widgets_values": [0.0, 3.0, 50]
+    }
+  ],
+  "links": [
+    [1, 1, 0, 5, 0, "VIDEO"],
+    [2, 2, 0, 3, 5, "DLSS5_RUNTIME_CATALOG"],
+    [3, 4, 0, 5, 1, "DLSSE_TEMPORAL_SETTINGS"],
+    [4, 3, 0, 10, 0, "DLSS5_RUNTIME"],
+    [5, 5, 0, 9, 0, "DLSSE_TEMPORAL_SEQUENCE"],
+    [6, 6, 0, 9, 2, "DLSS5_RENDER_CONTRACT"],
+    [7, 8, 0, 9, 3, "DLSS5_NR_PROFILE"],
+    [8, 7, 0, 9, 7, "DLSS5_NR_PROFILE"],
+    [9, 10, 0, 9, 1, "DLSS5_RUNTIME"]
+  ],
+  "groups": [
+    {"id": 1, "title": "1. Video and temporal reconstruction", "bounding": [-760, -180, 1440, 760], "color": "#3f789e", "font_size": 24, "flags": {}},
+    {"id": 2, "title": "2. Runtime selection and carrier verification", "bounding": [-760, -590, 1420, 350], "color": "#8a6d3b", "font_size": 24, "flags": {}},
+    {"id": 3, "title": "3. A/B look development", "bounding": [670, -500, 1160, 950], "color": "#6f4e8d", "font_size": 24, "flags": {}}
+  ],
+  "config": {},
+  "extra": {
+    "ds": {"scale": 0.75, "offset": [820, 520]},
+    "frontendVersion": "1.45.20",
+    "workflowRendererVersion": "LG"
+  },
+  "version": 0.4
+}

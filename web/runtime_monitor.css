@@ -1,0 +1,15 @@
+.dlss-runtime-monitor {
+  box-sizing: border-box; width: 100%; height: 100%; min-width: 0; min-height: 0;
+  overflow: auto; contain: inline-size; padding: 6px;
+  color: var(--fg-color, #ddd); font: 12px/1.5 ui-sans-serif, system-ui, sans-serif;
+}
+.dlss-runtime-monitor * { box-sizing: border-box; min-width: 0; max-width: 100%; }
+.dlss-runtime-monitor > details { border-top: 1px solid #5556; padding: 10px 0; }
+.dlss-runtime-monitor summary { cursor: pointer; overflow-wrap: anywhere; }
+.dlss-runtime-monitor pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; user-select: text; -webkit-user-select: text; }
+.dlss-runtime-monitor p { overflow-wrap: anywhere; }
+.dlss-runtime-monitor [role="status"] { font-size: 11px; color: var(--descrip-text, #aaa); }
+.dlss-runtime-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.dlss-runtime-actions button { border: 1px solid #7777; border-radius: 6px; padding: 6px 10px; color: inherit; background: var(--comfy-input-bg, #222); cursor: pointer; white-space: normal; }
+.dlss-runtime-actions button:disabled { cursor: default; opacity: .5; }
+.dlss-runtime-monitor :is(button, summary):focus-visible { outline: 2px solid #78d8ff; outline-offset: 2px; }

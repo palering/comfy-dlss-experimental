@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "direct-nr-local",
+  "backend": "direct_nr",
+  "components": {
+    "relay": "@bundled/relay",
+    "worker": "../../runtime/nvngx.dll",
+    "nvngx_dlssnr": "../../runtime/nvngx_dlssnr.dll"
+  },
+  "compatibility": {
+    "note": "Paths are relative to this JSON; supply your own trusted runtime. Linux currently uses Proton with Xwayland."
+  }
+}

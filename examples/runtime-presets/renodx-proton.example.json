@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "renodx-proton-example",
+  "backend": "renodx_reshade",
+  "components": {
+    "sidecar": "../components/sidecar/dlss-sidecar.exe",
+    "reshade_proxy": "../components/reshade/6.x-addon/dxgi.dll",
+    "renodx_addon": "../components/renodx/pinned/renodx-dlss5.addon64",
+    "nvngx_dlss": "../components/dlss/user-selected/nvngx_dlss.dll",
+    "nvngx_dlssnr": "../components/dlssnr/user-selected/nvngx_dlssnr.dll",
+    "d3dcompiler_47": "../components/d3dcompiler/47/D3DCompiler_47.dll"
+  },
+  "wine_dll_overrides": {
+    "d3dcompiler_47": "n",
+    "dxgi": "n,b"
+  },
+  "compatibility": {
+    "notes": "Copy this file to runtime-presets/default.json under the user data directory and adjust only paths to user-supplied components.",
+    "renodx_version_policy": "explicitly-pinned"
+  }
+}
