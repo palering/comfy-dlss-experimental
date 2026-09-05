@@ -28,6 +28,26 @@ Importing a workflow JSON only opens it. Save it in Comfy to have it appear in
 that instance's workflow library. A dedicated test instance has a separate user
 directory and will not show workflows saved in the normal instance.
 
+## Setup Helper preflight
+
+Add **DLSS Setup Helper** after Runtime Configuration. Connect the optional
+Video Input Adapter `sequence` so it checks the exact custom FFmpeg paths,
+input-readiness result and guide/flow choice; without it, the helper checks PATH
+and default DIS and reports that limited scope as a warning. Connect the helper's
+runtime output to Preview/Process—it is the same dictionary, unchanged.
+
+The card verifies the current host/platform selection, Runtime Configuration
+errors, component existence/PE headers/current SHA-256, known Worker/model pair,
+Python media packages, FFmpeg/ffprobe, NVIDIA driver detection and Linux
+Proton/Xwayland/Steam requirements. DIS checks the OpenCV API. NVIDIA flow checks
+the installed NVOF helper; its advanced capability option launches only our
+host-native helper to query the driver/GPU. It never starts `nvngx.dll` or loads
+`nvngx_dlssnr.dll`, so a green preflight is not a replacement for a one-frame GPU test.
+
+The full JSON is copyable from the card. It contains local paths and GPU details;
+redact those before posting publicly. The node is diagnostic only: it does not
+download, move, rename or patch files and does not install Python/system packages.
+
 ## Preview
 
 Choose start time, duration and scale, then click **Render current frame** or **Render range** inside
@@ -107,24 +127,24 @@ These are separate concepts; `duration` has never meant an internal batch size.
 | Optical flow and scene-cut handling | Video Guides and flow provider | No |
 
 The current implementation processes consecutive frames, not independent
-2-second/30-second batches. It first prepares color/motion spools on disk, then
-feeds them continuously to one NR stream, then encodes the visible result.
+2-second/30-second batches. Small ranges use bounded color/motion caches; larger
+ranges stream decode/flow/NR/encoding without raw pixel or motion files.
 There are no newly inserted chunk boundaries, repeated chunk warmups, or
 seams introduced by enabling full duration. NR frame payloads remain per-frame;
-metadata lists scale with frame count. Concurrent chunks and overlapped
-decode/NR/encode remain future mechanisms, not output settings.
+metadata lists scale with frame count. Concurrent independent chunks remain a
+future mechanism, not an output setting.
 
-Fixed 30-second and 2-GiB preparation limits have been removed. Before preparing,
-the service estimates cache plus output storage, combines requirements when
-both share a filesystem, and retains 512 MiB free space as a safety floor.
-It checks disk space periodically while writing. An estimate is not a reservation:
+There is no fixed 30-second video limit. The configurable storage defaults are
+2 GiB prepared cache, 128 MiB per raw entry, 8 GiB temporary total, 2 GiB per
+temporary job and 2 GiB free-space reserve. See [storage management](STORAGE.en.md).
+Space is checked periodically while writing. An estimate is not an OS reservation:
 other applications may still consume space. Insufficient space, invalid timing,
 or more than the current worker's 1,000,000-frame protocol budget fails explicitly;
 no shorter video is silently substituted. Inputs/controls currently allow up to
 86,400 seconds per requested range. The worker's existing one-hour wall-clock
 watchdog is execution time, not video duration; an exceptionally slow job can
-still time out. Cache eviction remains manual, and long high-resolution videos
-can consume substantial disk space. The execution report includes the resolved
+still time out. Inactive prepared entries are evicted by least recent use;
+temporary previews require explicit cleanup rather than silent deletion. The execution report includes the resolved
 output range and storage plan (a cache hit's plan describes its preparation).
 
 The 65,536-frame resident stream is a reuse limit, not an output-length setting.
@@ -158,9 +178,19 @@ widths 269px (input) and 266px (preview), neither card had horizontal overflow.
   correction/worker profile. The [parameter guide](nr-look.en.md) separates measured
   response from transport-only experimental fields. These settings feed both
   Preview and Process. Artistic presets are not SR Quality/Balanced modes.
+- **NR Pass Stack**: orders one to three Looks and connects directly to an existing
+  Preview/Process Look socket. Missing later stages inherit the prior Look. Stages
+  exchange uncompressed RGBA, reuse source guides, and encode only the final result;
+  see [multi-pass NR](MULTI_PASS_NR.en.md).
+- **Prepared Sequence Hub**: optional four-way wiring helper after Input Adapter.
+  Every output references the same prepared cache; it does not copy frames,
+  recompute flow, run NR, or enable concurrent GPU execution. Directly connecting
+  one Comfy output to several consumers remains equally valid.
 - **Video Input Adapter**: media interpretation and optional [host FFmpeg/ffprobe paths](media-tools.en.md).
 - **Runtime Configuration**: backend, component bindings, Proton and process
   policy; no artistic parameters.
+- **Setup Helper**: read-only validation of that Runtime plus the connected input
+  and flow dependencies; it does not own rendering controls.
 - **Preview / Process**: execution range and preview/output scale, not a second
   copy of look settings. Future automatic preview needs bounded ranges,
   debouncing and stale-result handling; it is not implemented yet.
@@ -186,17 +216,21 @@ Use 100% preview to judge the final-size NR appearance.
 `COMFY_DLSS_HOME` overrides the data root; otherwise it is under
 `ComfyUI/user/default/comfy-dlss-experimental`:
 
-- `prepared-clips/`: content-addressed color/motion spools and manifests.
+- `prepared-clips/`: content-addressed color/motion spools and manifests. Preview
+  Session and Process Video expose an optional **Retain prepared input cache**
+  toggle, enabled by default. Disable it to remove only that task's exact entry
+  after success; failures keep it for retry, and concurrent users are protected.
 - `runtime-snapshots/`: hash-verified copies of the three selected components.
 - `prefixes/`: isolated Proton state, keyed by runtime/platform/Proton/display.
 - `cache/`, `tmp/`: worker environment caches.
 
 Comfy's temp folder stores `dlss-experimental/<session>/a`, `b` and job reports.
 Process outputs are temporary VIDEO files until saved by Save Video. Completed
-per-job raw output spools are removed; prepared guides and failed-job evidence
-are retained. Cache eviction and a cleanup UI are not implemented: cumulative
-disk use grows with prepared ranges and is guarded by available space, not automatic eviction. Clean only identified
-inactive cache/job folders manually if needed; never remove active prefixes.
+per-job raw output spools are removed. Prepared guides are retained by default;
+the per-task toggle above can discard an entry after success. Large ranges stream
+without prepared raw files. Add **DLSS Storage Manager** to inspect, copy and remove
+identified inactive generated entries or change quotas. Saved output videos,
+sources, runtime snapshots and prefixes are outside its deletion scope.
 
 Changing DLLs changes the snapshot and prefix key. Snapshots are real copies,
 not hardlinks. The default is one isolated worker per variant. Runtime

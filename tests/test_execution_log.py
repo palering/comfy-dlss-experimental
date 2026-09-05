@@ -65,7 +65,8 @@ class ExecutionLogTests(unittest.TestCase):
                 current_trace().record["guide_cache_hit"] = True
                 return object(), {"passed": True}
             result = run(sequence={"video": object(), "public": {"width": 64}}, profile={"intensity": .4},
-                         runtime={"backend": "direct_nr", "preset_path": "/example.json", "component_hashes": {"worker": "abc"}})
+                         runtime={"backend": "direct_nr", "preset_path": "/example.json", "component_hashes": {"worker": "abc"}},
+                         retain_prepared_cache=False)
             self.assertTrue(result[1]["passed"])
             self.assertEqual(result[1]["execution"]["state"], "success")
             self.assertIsNone(current_trace())
@@ -74,6 +75,7 @@ class ExecutionLogTests(unittest.TestCase):
             record = status["history"][0]
             self.assertEqual(record["state"], "success")
             self.assertEqual(record["parameters"]["profile"], {"intensity": .4})
+            self.assertIs(record["parameters"]["retain_prepared_cache"], False)
             self.assertEqual(record["runtime"]["component_hashes"]["worker"], "abc")
             self.assertTrue(record["guide_cache_hit"])
             self.assertGreaterEqual(record["stage_seconds"]["input_preparation"], 0)

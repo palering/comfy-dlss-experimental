@@ -20,12 +20,15 @@ def schema_inputs(filename, class_name):
 class PreviewSchemaMetadataTests(unittest.TestCase):
     def test_preview_preserves_widget_order_and_machine_values(self):
         values = schema_inputs("preview_session.py", "DLSSExperimentalPreviewSession")
-        self.assertEqual([name for name, _ in values[:-1]], ["sequence", "runtime", "profile_b", "profile_a",
+        self.assertEqual([name for name, _ in values[:-2]], ["sequence", "runtime", "profile_b", "profile_a",
             "start_time", "duration", "preview_scale", "contract", "preview_mode", "cursor_time"])
+        self.assertEqual([name for name, _ in values[-2:]], ["process_to_end", "retain_prepared_cache"])
         data = dict(values)
-        self.assertEqual(values[-1][0], "process_to_end")
         self.assertIs(data["process_to_end"]["default"], False)
         self.assertIs(data["process_to_end"]["optional"], True)
+        self.assertIs(data["retain_prepared_cache"]["default"], True)
+        self.assertIs(data["retain_prepared_cache"]["optional"], True)
+        self.assertIs(data["retain_prepared_cache"]["advanced"], True)
         self.assertEqual(data["duration"]["max"], 86400)
         for name, value in {"start_time": 0.0, "duration": 3.0, "preview_scale": 50,
                             "preview_mode": "range", "cursor_time": 0.0}.items():
@@ -37,9 +40,12 @@ class PreviewSchemaMetadataTests(unittest.TestCase):
 
     def test_process_preserves_independent_output_range(self):
         values = schema_inputs("process_video.py", "DLSSExperimentalProcessVideo")
-        self.assertEqual([name for name, _ in values[:-1]], ["sequence", "runtime", "profile", "start_time", "duration", "scale", "contract"])
-        self.assertEqual(values[-1][0], "process_to_end")
+        self.assertEqual([name for name, _ in values[:-2]], ["sequence", "runtime", "profile", "start_time", "duration", "scale", "contract"])
+        self.assertEqual([name for name, _ in values[-2:]], ["process_to_end", "retain_prepared_cache"])
         data = dict(values)
+        self.assertIs(data["retain_prepared_cache"]["default"], True)
+        self.assertIs(data["retain_prepared_cache"]["optional"], True)
+        self.assertIs(data["retain_prepared_cache"]["advanced"], True)
         self.assertEqual(data["duration"]["default"], 0.0)
         self.assertEqual(data["scale"]["default"], 100)
         self.assertEqual(data["scale"]["options"], [50, 75, 100])

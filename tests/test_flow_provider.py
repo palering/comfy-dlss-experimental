@@ -52,6 +52,7 @@ class ProviderTests(unittest.TestCase):
             config = FlowProvider(kind="nvidia")
             settings = GuideSettings(motion_provider="nvidia", flow=config)
             with patch("comfy_dlss_experimental.nvidia_flow.probe_nvidia", side_effect=lambda *_args, **_kw: dict(backend)), \
+                 patch("comfy_dlss_experimental.video_pipeline.probe_media", return_value={"video": {"width": 64, "height": 64}, "fps": "24"}), \
                  patch("comfy_dlss_experimental.video_pipeline.prepare_clip", side_effect=prepare):
                 def cached(value):
                     return prepared_cache(source, ClipRequest(), value, root, lambda: False, lambda *_args: None)

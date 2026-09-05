@@ -92,7 +92,8 @@ class ColorPolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); video = root / "source"
             video.write_bytes(b"fixture")
-            with patch("comfy_dlss_experimental.video_pipeline.prepare_clip", side_effect=prepare) as conversion:
+            with patch("comfy_dlss_experimental.video_pipeline.prepare_clip", side_effect=prepare) as conversion, \
+                    patch("comfy_dlss_experimental.video_pipeline.probe_media", return_value={"video": {"width": 64, "height": 64}, "fps": "24"}):
                 def cached(policy, request=ClipRequest()):
                     return prepared_cache(video, request, GuideSettings(), root, lambda: False, lambda *_: None, color_policy=policy)
                 off = InputColorPolicy()

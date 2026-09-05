@@ -9,6 +9,41 @@ The active application-level minimum is our relay, an external video Worker and
 its matching NR model. NVIDIA flow additionally needs our host-native NVOF helper;
 driver/Proton dependencies still apply. See [installation and layout](distribution.en.md).
 
+## At a glance: files already collected
+
+This is the result for the **current active `direct_nr` video backend**, not a
+claim that the other files are useless to their original projects.
+
+| Collected file | Used now? | Decision |
+| --- | --- | --- |
+| `nvngx.dll` from `DLSS5VideoConverter/bin/runtime/` | **Yes, required** | External D5V2 video Worker; started as a PE program, not imported into Python |
+| `nvngx_dlssnr.dll` from the same converter runtime directory | **Yes, required** | Matching NR model/runtime loaded by that Worker |
+| A same-named `nvngx_dlssnr.dll` obtained with RenoDX/ReShade files | **No, unless independently paired and validated** | Same filename does not establish a matching ABI, patch level or GPU target |
+| ReShade package `dxgi.dll` / extracted `ReShade64.dll` | **No** | Graphics proxy/hook for the retained ReShade route; direct_nr has no injected application |
+| `renodx-dlss5.addon64` or similarly named RenoDX add-on | **No** | ReShade add-on; the current Worker protocol does not load it |
+| `nvngx_dlss.dll` | **No** | DLSS Super Resolution component for other routes; current output remains same-resolution NR |
+| `D3DCompiler_47.dll` | **No** | Only relevant to specific ReShade/Wine shader-compiler setups |
+| `sl.*.dll`, `nvngx_dlssg.dll` | **No** | Streamline/Frame Generation components; those backends are not implemented |
+
+The two required external files must come from one known-compatible package.
+Do not choose a file merely because its name matches. Our Setup Helper verifies
+presence, PE identity and the Runtime Configuration hashes; it also labels the
+exact tested pair below. It cannot prove that an unknown pair is semantically
+compatible without a GPU execution test.
+
+### Three different things named `nvngx.dll`
+
+| Identity | Typical location | Used by this backend? |
+| --- | --- | --- |
+| **Video Worker executable** | User data `components/nr/<bundle>/nvngx.dll`; 67,072-byte tested file | **Yes.** Relay starts it with `--video`. This is the file meant by our preset's `worker` role. |
+| **NVIDIA driver NGX bootstrap** | DriverStore or a Proton prefix's `system32/nvngx.dll`; size/version managed by the driver environment | **Indirect driver environment only.** Never copy it over the Worker or add it to the preset. |
+| **Caller-validation shim** | Zonnery-style `caller/nvngx.dll` beside that project's player | **No.** It is a thin forwarding DLL for that player and does not implement our D5V2 process protocol. |
+
+The matching NR file is named `nvngx_dlssnr.dll`, not a fourth meaning of
+`nvngx.dll`.
+See [NGX, Worker, and shim role boundaries](RUNTIME_ROLES.en.md) for the binary/
+export evidence and the future clearly named Worker plus separate thin-shim rule.
+
 ## 1. Files actually used
 
 | File | Identity and role | Provenance / acquisition lead | How this project uses it |
@@ -98,6 +133,16 @@ leads, not a verified replacement video Worker.
 [DLSS-COM](https://github.com/MYT-YEP/DLSS-COM) has its own D3D12 Worker and asks users
 to supply the model; that does not mean our relay implements its Worker.
 
+### How the two referenced README file lists map to this project
+
+| Upstream | Files/runtime it describes | What we reuse |
+| --- | --- | --- |
+| [Zonnery/dlss5-nr-player](https://github.com/Zonnery/dlss5-nr-player) | Direct NGX player build: driver core renamed `_nvngx.dll`, `nvngx_dlssnr.dll`, NGX headers, `caller/nvngx.dll`; its DX11 bridge additionally needs `nvngx_dlss.dll`; ffmpeg/ffprobe are external tools | **None of its separately named bootstrap/shim/header files.** Its README is valuable for direct-NGX concepts, but our selected external Worker already owns its own calling contract. |
+| [perseval-BLR/DLSS5-Video-Converter](https://github.com/perseval-BLR/DLSS5-Video-Converter) | A complete Windows web application with embedded Python/FFmpeg and `bin/runtime`; its release runtime contains the video Worker and model | From the exact tested RTX40 archive, only `bin/runtime/nvngx.dll` and matching `nvngx_dlssnr.dll`. We do not reuse the web server, embedded Python, packaged ffmpeg, `nvidia-smi.exe`, job/output folders or launcher. |
+
+These projects package different calling architectures. Their file lists are
+not additive and same-named files are not safely interchangeable.
+
 ## 4. Where to put external files
 
 Keep versioned bundles **outside node source, inside Comfy user data**:
@@ -111,6 +156,9 @@ ComfyUI/
       nvngx_dlssnr.dll
     runtime-presets/default.json
 ```
+
+The complete source/data/generated directory tree is documented in
+[project layout](PROJECT_LAYOUT.en.md).
 
 A custom Comfy user directory or COMFY_DLSS_HOME changes this root. Never place
 these in System32, DriverStore, site-packages or Proton system directories, or

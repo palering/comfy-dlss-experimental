@@ -16,7 +16,8 @@ class DLSSExperimentalProcessVideo(io.ComfyNode):
             node_id="DLSSExperimentalProcessVideo", display_name="DLSS Process Video",
             category="DLSS Experimental/Processing", search_aliases=["dlss process", "neural render video"],
             description="独立控制正式处理范围，输出 VIDEO 连接保存视频。勾选处理到视频末尾可自动读取剩余时长，无需手填；取消原 30 秒限制，逐帧落盘并检查帧数和可用磁盘。本节点不读取 Preview 的范围或缩放，两者可共用输入、NR Look 和 Runtime。",
-            inputs=[TemporalSequence.Input("sequence"), RuntimeConfig.Input("runtime"), NRProfile.Input("profile"),
+            inputs=[TemporalSequence.Input("sequence"), RuntimeConfig.Input("runtime"),
+                    NRProfile.Input("profile", tooltip="连接一个 NR Look，或连接 DLSS NR Pass Stack 执行 1–3 层无损级联。"),
                     io.Float.Input("start_time", default=0.0, min=0.0, max=86400.0, step=0.1,
                                    display_name="处理起点（秒）", tooltip="相对输入 VIDEO 的起点；独立于预览起点。0 表示从输入开头处理。"),
                     io.Float.Input("duration", default=0.0, min=0.0, max=86400.0, step=0.1,
@@ -27,13 +28,18 @@ class DLSSExperimentalProcessVideo(io.ComfyNode):
                     RenderContract.Input("contract", optional=True, display_name="历史处理设置（可选）",
                                          tooltip="内部处理机制连接 DLSS History Settings；不决定输出时长。输出范围只由本节点的起点、时长或到末尾开关决定。"),
                     io.Boolean.Input("process_to_end", default=False, optional=True, display_name="处理到视频末尾",
-                                     tooltip="自动读取输入 VIDEO，从处理起点输出到末尾，忽略手动时长；起点 0 = 完整视频。保持原尺寸请选择输出尺寸 100%。")],
+                                     tooltip="自动读取输入 VIDEO，从处理起点输出到末尾，忽略手动时长；起点 0 = 完整视频。保持原尺寸请选择输出尺寸 100%。"),
+                    io.Boolean.Input("retain_prepared_cache", default=True, optional=True, advanced=True,
+                                     display_name="保留输入准备缓存",
+                                     tooltip="在共享配额内保留小型准备缓存，方便调节 Look 时复用。大区间始终流式处理，不保存整段输入缓存。关闭后成功任务删除小缓存；失败或并发使用者要求保留时仍保留。旧的临时预览在 DLSS 缓存与文件管理中清理。")],
             outputs=[io.Video.Output("video"), io.String.Output("report")],
             not_idempotent=True, is_experimental=True)
 
     @classmethod
-    def execute(cls, sequence, runtime, profile, start_time, duration, scale, contract=None, process_to_end=False):
+    def execute(cls, sequence, runtime, profile, start_time, duration, scale, contract=None, process_to_end=False,
+                retain_prepared_cache=True):
         contract = contract or {"schema_version": 2, "mode": "native", "warmup_frames": 120, "pre_roll": 0.5}
         video, report = run_process(sequence=sequence, runtime=runtime, profile=profile, contract=contract,
-                                    start_time=start_time, duration=duration, scale=int(scale), process_to_end=process_to_end)
+                                    start_time=start_time, duration=duration, scale=int(scale), process_to_end=process_to_end,
+                                    retain_prepared_cache=retain_prepared_cache)
         return io.NodeOutput(video, json.dumps(report, indent=2))

@@ -11,10 +11,58 @@ from unittest.mock import patch
 
 from comfy_dlss_experimental.media_clip import ClipRequest, file_hash, run_cancellable
 from comfy_dlss_experimental.presets import RuntimePreset, resolve_component_paths
-from comfy_dlss_experimental.video_pipeline import bind_video_source, cancellable_lock, guide_settings, profile_settings, snapshot_runtime, render_original
+from comfy_dlss_experimental.video_pipeline import (_CACHE_LOCK, _lease_prepared_cache,
+    bind_video_source, cancellable_lock, guide_settings, profile_settings,
+    release_prepared_cache, snapshot_runtime, render_original)
 
 
 class VideoPipelineTests(unittest.TestCase):
+    def test_prepared_cache_discard_waits_for_all_consumers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prepared = root / "prepared-clips" / ("a" * 64)
+            prepared.mkdir(parents=True)
+            (prepared / "color.rgba").write_bytes(b"prepared")
+            with _CACHE_LOCK:
+                _lease_prepared_cache(prepared, retain=False)
+                _lease_prepared_cache(prepared, retain=False)
+            first = release_prepared_cache(prepared, root, retain=False, success=True)
+            self.assertTrue(first["deferred"])
+            self.assertTrue(prepared.exists())
+            second = release_prepared_cache(prepared, root, retain=False, success=True)
+            self.assertTrue(second["removed"])
+            self.assertFalse(prepared.exists())
+
+    def test_prepared_cache_failure_or_concurrent_retain_wins(self):
+        for failure, concurrent_keep in ((True, False), (False, True)):
+            with self.subTest(failure=failure, concurrent_keep=concurrent_keep), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                prepared = root / "prepared-clips" / ("b" * 64)
+                prepared.mkdir(parents=True)
+                with _CACHE_LOCK:
+                    _lease_prepared_cache(prepared, retain=False)
+                    if concurrent_keep:
+                        _lease_prepared_cache(prepared, retain=True)
+                release_prepared_cache(prepared, root, retain=False, success=not failure)
+                if concurrent_keep:
+                    result = release_prepared_cache(prepared, root, retain=True, success=True)
+                    self.assertIn("concurrent consumer", result["reason"])
+                self.assertTrue(prepared.exists())
+
+    def test_prepared_cache_cleanup_rejects_broad_targets(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            invalid = root / "prepared-clips"
+            invalid.mkdir()
+            with self.assertRaisesRegex(ValueError, "invalid prepared cache path"):
+                release_prepared_cache(invalid, root, retain=False, success=True)
+            external = root / "external"
+            external.mkdir()
+            symlink = invalid / ("c" * 64)
+            symlink.symlink_to(external, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "symlinked prepared cache"):
+                release_prepared_cache(symlink, root, retain=False, success=True)
+
     def test_original_encode_is_cached_and_corruption_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

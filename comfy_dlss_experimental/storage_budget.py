@@ -1,8 +1,8 @@
 """Disk-backed video admission checks; no duration-based 30-second cutoff.
 
 Free-space checks are not reservations: other processes can still consume disk.
-Keep a safety floor and recheck periodically during writes. Existing caches are
-never deleted automatically to make a job fit.
+Keep a safety floor and recheck periodically during writes. Prepared-cache LRU
+eviction is handled separately by storage_manager; saved media is never evicted.
 """
 import math
 from pathlib import Path
@@ -22,12 +22,16 @@ def require_disk(path, needed, *, stage):
             raise OSError("Cannot locate storage filesystem")
         existing = parent
     free = shutil.disk_usage(existing).free
-    required = needed + DISK_RESERVE
+    from .storage_manager import current_job, check_job, GiB
+    job = current_job()
+    reserve = job["settings"]["free_gib"] * GiB if job else DISK_RESERVE
+    check_job()
+    required = needed + reserve
     if free < required:
         raise ValueError(f"{stage}磁盘空间不足：预计还需 {needed / 1024**3:.2f} GiB，"
-                         f"另留 0.50 GiB 安全余量；可用 {free / 1024**3:.2f} GiB。"
+                         f"另留 {reserve / GiB:.2f} GiB 安全余量；可用 {free / 1024**3:.2f} GiB。"
                          "请缩小尺寸、选择较短区间或手动清理已确认不用的缓存。")
-    return {"estimated_additional_bytes": needed, "reserve_bytes": DISK_RESERVE,
+    return {"estimated_additional_bytes": needed, "reserve_bytes": reserve,
             "available_bytes": free, "filesystem_path": str(existing), "stage": stage}
 
 

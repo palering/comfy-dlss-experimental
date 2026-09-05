@@ -20,9 +20,11 @@ from .flow_provider import FlowProvider
 from .input_policy import InputColorPolicy
 from .execution_log import measured, phase, current_trace
 from .media_tools import media_tool_identity
+from .nr_effect import expand_effect
 
 _GPU_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
+_PREPARED_LEASES: dict[Path, dict[str, int | bool]] = {}
 
 
 def check_cancel(cancelled):
@@ -39,6 +41,76 @@ def cancellable_lock(lock, cancelled):
         yield
     finally:
         lock.release()
+
+
+def _lease_prepared_cache(path: Path, *, retain: bool) -> None:
+    """Register a consumer while `_CACHE_LOCK` is held.
+
+    A retained consumer wins over a discard request from a concurrent branch.
+    Failed consumers also retain the entry so a retry does not repeat input
+    preparation merely because the downstream Worker failed.
+    """
+    if type(retain) is not bool:
+        raise ValueError("retain_prepared_cache must be boolean")
+    path = path.resolve()
+    state = _PREPARED_LEASES.setdefault(
+        path, {"users": 0, "keep_seen": False, "discard_seen": False}
+    )
+    state["users"] = int(state["users"]) + 1
+    state["keep_seen"] = bool(state["keep_seen"]) or retain
+
+
+def release_prepared_cache(path: Path, root: Path, *, retain: bool, success: bool) -> dict:
+    """Release one exact prepared entry and optionally delete it after success.
+
+    Only a hash-named direct child of this data root's `prepared-clips` may be
+    removed.  Concurrent users are counted; any concurrent keep request or
+    failed consumer preserves the entry.
+    """
+    if type(retain) is not bool or type(success) is not bool:
+        raise ValueError("prepared cache release flags must be boolean")
+    raw_path = Path(path)
+    expected_parent = (Path(root) / "prepared-clips").resolve()
+    if (raw_path.parent.resolve() != expected_parent or len(raw_path.name) != 64 or
+            any(c not in "0123456789abcdef" for c in raw_path.name)):
+        raise ValueError("Refusing to release an invalid prepared cache path")
+    if raw_path.is_symlink():
+        raise ValueError("Refusing to remove a symlinked prepared cache")
+    path = raw_path.resolve()
+    if path.parent != expected_parent or path.name != raw_path.name:
+        raise ValueError("Refusing to release an invalid prepared cache path")
+    with _CACHE_LOCK:
+        state = _PREPARED_LEASES.get(path)
+        if state is None or int(state["users"]) < 1:
+            raise RuntimeError("Prepared cache lease is missing")
+        state["users"] = int(state["users"]) - 1
+        if success and not retain:
+            state["discard_seen"] = True
+        else:
+            state["keep_seen"] = True
+        if int(state["users"]):
+            return {"policy": "retain" if retain else "discard_after_success",
+                    "removed": False, "deferred": True,
+                    "reason": "other consumers are still using this prepared cache"}
+        _PREPARED_LEASES.pop(path)
+        discard = bool(state["discard_seen"]) and not bool(state["keep_seen"])
+        if not discard:
+            reason = ("task did not complete successfully" if not success else
+                      "a concurrent consumer requested retention" if state["discard_seen"] else
+                      "retention enabled")
+            return {"policy": "retain" if retain else "discard_after_success",
+                    "removed": False, "deferred": False, "reason": reason}
+        if not path.exists():
+            return {"policy": "discard_after_success", "removed": False,
+                    "deferred": False, "reason": "cache was already absent"}
+        try:
+            shutil.rmtree(path)
+        except OSError as error:
+            return {"policy": "discard_after_success", "removed": False,
+                    "deferred": False, "reason": "cache cleanup failed",
+                    "error": f"{type(error).__name__}: {error}"}
+        return {"policy": "discard_after_success", "removed": True,
+                "deferred": False, "reason": "successful task requested discard"}
 
 
 def profile_settings(profile: dict, width: int, height: int, frames: int, warmup: int) -> DirectNRSettings:
@@ -113,6 +185,17 @@ def bind_video_source(video, request: ClipRequest, job: Path, *,
     selected = video.as_trimmed(start_time=request.start - context, duration=request.duration + context)
     if selected is None:
         raise ValueError("Selected VIDEO range is empty")
+    from .storage_manager import current_job, MiB
+    storage = current_job()
+    if storage is not None:
+        # Public VIDEO.save_to has no bounded/cancellable byte sink. Restrict this
+        # fallback; file-backed videos use the streamed path without this limit.
+        width, height = video.get_dimensions()
+        selected_frames = selected.get_frame_count()
+        if type(selected_frames) is not int or selected_frames <= 0:
+            raise ValueError("Cannot bound VIDEO materialization; save and reload the upstream video first")
+        if width * height * 8 * selected_frames > storage["settings"]["entry_mib"] * MiB:
+            raise ValueError("Large cropped/tensor VIDEO must first be saved and loaded as a file-backed VIDEO for bounded streaming. The public save_to fallback cannot enforce a disk quota.")
     destination = job / "selected-input.mp4"
     selected.save_to(str(destination), crf=0, preset="ultrafast")
     return destination, ClipRequest(context, request.duration, context, request.scale, request.single_frame)
@@ -156,7 +239,8 @@ def snapshot_runtime(runtime: dict, root: Path) -> tuple[Path, Path]:
 
 @measured("input_preparation")
 def prepared_cache(source: Path, request: ClipRequest, guides: GuideSettings, root: Path, cancelled, progress, *,
-                   color_policy: InputColorPolicy = InputColorPolicy(), scratch_path: Path | None = None) -> tuple[Path, dict, bool]:
+                   color_policy: InputColorPolicy = InputColorPolicy(), scratch_path: Path | None = None,
+                   lease: bool = False, retain: bool = True) -> tuple[Path, dict, bool]:
     backend = None
     if guides.motion_provider == "nvidia":
         from .nvidia_flow import probe_nvidia
@@ -166,6 +250,24 @@ def prepared_cache(source: Path, request: ClipRequest, guides: GuideSettings, ro
                 "request": asdict(request), "guides": asdict(guides), "color_policy": asdict(color_policy)}
     key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     path = root / "prepared-clips" / key
+    from .storage_manager import settings as storage_settings, make_cache_room, MiB
+    policy = storage_settings(root)
+    meta = probe_media(source, cancelled=cancelled, color_policy=color_policy)
+    width, height = (int(meta["video"][k] * request.scale) // 2 * 2 for k in ("width", "height"))
+    from .storage_budget import frame_budget
+    from fractions import Fraction
+    frames = frame_budget(request.duration, request.pre_roll, Fraction(meta["fps"]), request.single_frame)
+    estimated = width * height * 8 * frames
+    if estimated > policy["entry_mib"] * MiB:
+        from .stream_media import inspect_stream
+        manifest = inspect_stream(source, request, guides, color_policy, cancelled, progress)
+        manifest["flow_backend"] = backend
+        with cancellable_lock(_CACHE_LOCK, cancelled):
+            # Opportunistically bound old caches even when the new task streams.
+            make_cache_room(root, 0, _PREPARED_LEASES)
+            if lease:
+                _lease_prepared_cache(path, retain=retain)
+        return path, manifest, False
     with cancellable_lock(_CACHE_LOCK, cancelled):
         manifest_file = path / "manifest.json"
         if manifest_file.is_file():
@@ -173,15 +275,28 @@ def prepared_cache(source: Path, request: ClipRequest, guides: GuideSettings, ro
             size = manifest["width"] * manifest["height"] * 4 * len(manifest["frames"])
             if all((path / name).stat().st_size == size for name in ("color.rgba", "motion.rg16f")):
                 progress("guides_cached", 0, len(manifest["frames"]))
+                make_cache_room(root, 0, [path, *_PREPARED_LEASES])
+                if lease:
+                    _lease_prepared_cache(path, retain=retain)
+                os.utime(path, None)
                 return path, manifest, True
             raise ValueError("Prepared cache is truncated; use a fresh data directory")
         progress("preparing_guides", 0, 0)
+        # Include room for the encoded original and small manifest files.
+        make_cache_room(root, estimated * 2 + MiB, _PREPARED_LEASES)
         temporary = path.with_name(key + ".partial-" + uuid.uuid4().hex)
-        manifest = prepare_clip(source, temporary, request, guides, cancelled=cancelled, color_policy=color_policy, scratch_path=scratch_path)
-        manifest["flow_backend"] = backend
-        (temporary / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-        check_cancel(cancelled)
-        temporary.rename(path)
+        try:
+            manifest = prepare_clip(source, temporary, request, guides, cancelled=cancelled, color_policy=color_policy, scratch_path=scratch_path)
+            manifest["flow_backend"] = backend
+            (temporary / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            check_cancel(cancelled)
+            temporary.rename(path)
+        except BaseException:
+            if temporary.is_dir() and not temporary.is_symlink():
+                shutil.rmtree(temporary)
+            raise
+        if lease:
+            _lease_prepared_cache(path, retain=retain)
         return path, manifest, False
 
 
@@ -217,9 +332,9 @@ def relay_environment(runtime: dict, root: Path) -> tuple[Path | None, dict]:
     return proton, environment
 
 
-def render_variant(prepared: Path, manifest: dict, runtime: dict, profile: dict, root: Path, job: Path,
-                   warmup: int, cancelled, progress) -> tuple[Path, dict]:
-    import numpy as np
+def _render_variant_frames(prepared: Path, manifest: dict, runtime: dict, profile: dict, root: Path, job: Path,
+                           warmup: int, cancelled, progress, *, color_source: Path,
+                           include_history: bool, verify_original: bool) -> tuple[Path, dict]:
     job.mkdir(parents=True, exist_ok=False)
     settings = profile_settings(profile, manifest["width"], manifest["height"], len(manifest["frames"]), warmup)
     bypass = not profile.get("nr_enabled", True) or profile.get("mix", 1.0) == 0
@@ -227,9 +342,11 @@ def render_variant(prepared: Path, manifest: dict, runtime: dict, profile: dict,
               "color_pipeline": manifest.get("color_pipeline")}
     plane = settings.plane_bytes
     from .storage_budget import require_disk
-    # Raw result plus encoded result allowance, checked before launching a GPU
-    # process. No allocation proportional to duration is made in GPU memory.
-    require_disk(job, plane * manifest["visible_count"] * 2, stage="NR 结果与编码")
+    output_count = len(manifest["frames"]) if include_history else manifest["visible_count"]
+    expected_input_bytes = plane * len(manifest["frames"])
+    if not color_source.is_file() or color_source.stat().st_size != expected_input_bytes:
+        raise ValueError("NR pass input has an unexpected RGBA frame count")
+    require_disk(job, plane * output_count, stage="NR 中间结果" if include_history else "NR 结果")
     session = None
     lease = None
     resident_result = None
@@ -237,6 +354,7 @@ def render_variant(prepared: Path, manifest: dict, runtime: dict, profile: dict,
     stop = threading.Event()
     watcher = None
     output_hash = hashlib.sha256()
+    all_output_hash = hashlib.sha256()
     frame_seconds = []
     trace = current_trace()
     from .resident_worker import compatibility_key, resident_worker
@@ -290,7 +408,7 @@ def render_variant(prepared: Path, manifest: dict, runtime: dict, profile: dict,
                 watcher = threading.Thread(target=watch_cancel, name="dlss-job-cancel", daemon=True)
                 watcher.start()
             raw = job / "output.rgba"
-            with (prepared / "color.rgba").open("rb") as colors, (prepared / "motion.rg16f").open("rb") as motions, raw.open("xb") as output:
+            with color_source.open("rb") as colors, (prepared / "motion.rg16f").open("rb") as motions, raw.open("xb") as output:
                 for index, frame in enumerate(manifest["frames"]):
                     check_cancel(cancelled)
                     if index % 64 == 0:
@@ -298,7 +416,7 @@ def render_variant(prepared: Path, manifest: dict, runtime: dict, profile: dict,
                     with phase("cache_read_verify"):
                         color, motion = colors.read(plane), motions.read(plane)
                         if (len(color) != plane or len(motion) != plane
-                                or hashlib.sha256(color).hexdigest() != frame["color_sha256"]
+                                or (verify_original and hashlib.sha256(color).hexdigest() != frame["color_sha256"])
                                 or hashlib.sha256(motion).hexdigest() != frame["motion_sha256"]):
                             raise ValueError("Prepared media cache failed integrity check")
                     tick = time.perf_counter()
@@ -306,13 +424,16 @@ def render_variant(prepared: Path, manifest: dict, runtime: dict, profile: dict,
                     with phase(first_phase if index == 0 else "nr_frames_and_transport"):
                         rendered = color if bypass else client.process(color, motion, frame["pts_ns"], reset=frame["reset"] or index == 0)
                     frame_seconds.append(time.perf_counter() - tick)
-                    if frame["visible"]:
-                        mix = profile.get("mix", 1.0)
-                        if not bypass and mix < 1:
-                            a = np.frombuffer(color, np.uint8).astype(np.float32)
-                            b = np.frombuffer(rendered, np.uint8).astype(np.float32)
-                            rendered = np.rint(a * (1 - mix) + b * mix).clip(0, 255).astype(np.uint8).tobytes()
+                    mix = profile.get("mix", 1.0)
+                    if not bypass and mix < 1:
+                        import numpy as np
+                        a = np.frombuffer(color, np.uint8).astype(np.float32)
+                        b = np.frombuffer(rendered, np.uint8).astype(np.float32)
+                        rendered = np.rint(a * (1 - mix) + b * mix).clip(0, 255).astype(np.uint8).tobytes()
+                    all_output_hash.update(rendered)
+                    if include_history or frame["visible"]:
                         output.write(rendered)
+                    if frame["visible"]:
                         output_hash.update(rendered)
                     progress("rendering", index + 1, settings.frame_count)
             if session:
@@ -326,6 +447,8 @@ def render_variant(prepared: Path, manifest: dict, runtime: dict, profile: dict,
             # Hash visible RGBA bytes before lossy encoding, for repeatable A/B
             # diagnostics. A changed hash is not evidence of better quality.
             report["raw_output_sha256"] = output_hash.hexdigest()
+            report["all_frames_sha256"] = all_output_hash.hexdigest()
+            report["output_includes_history"] = include_history
         except Exception as exc:
             if trace and trace.release_requested.is_set():
                 raise InterruptedError("Worker 手动释放：本次任务已终止") from exc
@@ -363,27 +486,98 @@ def render_variant(prepared: Path, manifest: dict, runtime: dict, profile: dict,
                     "steady_frame_p95_seconds": ordered[min(len(ordered) - 1, int(len(ordered) * .95))] if ordered else None,
                     "note": "Host wall time: includes NR, upload/download, relay/pipe transport; not GPU kernel time."}
             (job / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    if raw.stat().st_size != plane * output_count:
+        raise ValueError("NR pass output has an unexpected RGBA frame count")
+    report["passed"] = True
+    (job / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return raw, report
+
+
+def render_effect(prepared: Path, manifest: dict, runtime: dict, effect: dict, root: Path, job: Path,
+                  warmup: int, cancelled, progress) -> tuple[Path, dict]:
+    """Run one or more NR passes without lossy intermediate video encoding."""
+    profiles, plan = expand_effect(effect)
+    previous = prepared / "color.rgba"
+    reports = []
+    total_frames = len(manifest["frames"]) * len(profiles)
+    for index, profile in enumerate(profiles):
+        final = index == len(profiles) - 1
+        stage_job = job if len(profiles) == 1 else job / f"pass-{index + 1}"
+
+        def stage_progress(stage, done, count, *, _index=index):
+            progress(f"pass_{_index + 1}_of_{len(profiles)}:{stage}", _index * count + done, len(profiles) * count)
+
+        with phase(f"nr_pass_{index + 1}"):
+            raw, pass_report = _render_variant_frames(
+                prepared, manifest, runtime, profile, root, stage_job, warmup, cancelled,
+                stage_progress, color_source=previous, include_history=not final,
+                verify_original=index == 0,
+            )
+        pass_report["pass_index"] = index + 1
+        pass_report["look_inherited"] = plan["inherited"][index]
+        reports.append(pass_report)
+        if previous != prepared / "color.rgba":
+            previous.unlink()
+        previous = raw
+
     destination = job / "output.mp4"
     try:
         check_cancel(cancelled)
-        progress("encoding", 0, manifest["visible_count"])
-        with phase("encoding_b"):
-            export_video(raw, destination, manifest, cancelled=cancelled)
+        from .storage_budget import require_disk
+        require_disk(job, previous.stat().st_size * 2, stage="NR 结果编码")
+        progress("encoding", total_frames, total_frames)
+        with phase("encoding_output"):
+            export_video(previous, destination, manifest, cancelled=cancelled)
         check_cancel(cancelled)
     except BaseException:
-        if resident_result and resident_result["retained"]:
-            resident_worker.request_release(resident_result["worker_id"], mode="idle")
+        from .resident_worker import resident_worker
+        for pass_report in reversed(reports):
+            resident = pass_report.get("resident")
+            if resident and resident.get("retained"):
+                resident_worker.request_release(resident["worker_id"], mode="idle")
+                break
         raise
+    previous.unlink()
+    if len(reports) == 1:
+        report = reports[0]
+        report["effect"] = plan
+    else:
+        report = {
+            "schema_version": 1,
+            "kind": "nr_pass_stack_result",
+            "pass_count": len(reports),
+            "guide_policy": plan["guide_policy"],
+            "intermediate_format": plan["intermediate_format"],
+            "intermediate_video_encoding": False,
+            "passes": reports,
+            "raw_output_sha256": reports[-1]["raw_output_sha256"],
+            "color_pipeline": manifest.get("color_pipeline"),
+        }
     report["passed"] = True
     (job / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
-    # Only our exact, completed per-job raw spool is removed. Prepared guides
-    # stay reusable; failed-job spools and diagnostics remain available.
-    raw.unlink()
     return destination, report
+
+
+def render_variant(prepared: Path, manifest: dict, runtime: dict, profile: dict, root: Path, job: Path,
+                   warmup: int, cancelled, progress) -> tuple[Path, dict]:
+    """Backward-compatible entrypoint accepting one Look or an NR Pass Stack."""
+    if manifest.get("streaming"):
+        from .stream_render import render_stream
+        return render_stream(manifest, runtime, profile, root, job, warmup, cancelled, progress)
+    return render_effect(prepared, manifest, runtime, profile, root, job, warmup, cancelled, progress)
 
 
 @measured("original_a_export")
 def render_original(prepared: Path, manifest: dict, job: Path, cancelled) -> Path:
+    if manifest.get("streaming"):
+        from .stream_media import StreamEncoder, prepared_frames
+        original = {**manifest, "guide_settings": asdict(GuideSettings(motion_provider="zero"))}
+        job.mkdir(parents=True, exist_ok=False)
+        with StreamEncoder(job / "original.mp4", original, cancelled) as encoder:
+            for color, _motion, info in prepared_frames(original, GuideSettings(motion_provider="zero"), cancelled):
+                if info["visible"]:
+                    encoder.write(color)
+            return encoder.finish()
     job.mkdir(parents=True, exist_ok=False)
     # Look edits do not change A. Cache the *encoded* adapted original as well as
     # its pixels, otherwise every comparison pays another full x264 encode.

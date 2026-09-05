@@ -23,7 +23,7 @@ def node_schemas():
 class LocaleAndExampleTests(unittest.TestCase):
     def test_locales_cover_all_nodes_inputs_outputs_and_static_options(self):
         schemas = node_schemas()
-        catalogs = [json.loads((ROOT / "locales" / lang / "nodeDefs.json").read_text(encoding="utf-8")) for lang in ("en", "zh")]
+        catalogs = [json.loads((ROOT / "locales" / lang / "nodeDefs.json").read_text(encoding="utf-8")) for lang in ("en", "zh", "zh-TW")]
         for catalog in catalogs:
             self.assertEqual(set(catalog), set(schemas))
             for name, schema in schemas.items():
@@ -48,7 +48,7 @@ class LocaleAndExampleTests(unittest.TestCase):
 
     def test_legacy_dynamic_choices_have_display_translations_without_new_values(self):
         from comfy_dlss_experimental.nr_options import LOOK_CHOICES
-        for lang in ("en", "zh"):
+        for lang in ("en", "zh", "zh-TW"):
             catalog = json.loads((ROOT / "locales" / lang / "nodeDefs.json").read_text(encoding="utf-8"))
             for name, choices in LOOK_CHOICES.items():
                 self.assertEqual(set(catalog["DLSSExperimentalNRProfile"]["inputs"][name]["options"]), set(choices))

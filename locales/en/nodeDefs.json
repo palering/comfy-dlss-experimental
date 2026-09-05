@@ -253,6 +253,60 @@
       }
     }
   },
+  "DLSSExperimentalNRPassStack": {
+    "display_name": "DLSS NR Pass Stack",
+    "description": "Cascade one to three NR Looks. Each pass consumes the prior pass's uncompressed RGBA result, reuses the input guides, and resets its own temporal history. This is an unofficial experiment, not an SR/FG or quality mode.",
+    "inputs": {
+      "pass_count": {
+        "name": "NR passes",
+        "tooltip": "Evaluate Feature 18 one to three times. Cost and generative drift generally increase with each pass; test two passes on a frame or short clip first."
+      },
+      "pass_1": {
+        "name": "Pass 1 Look",
+        "tooltip": "Required Look for the first pass."
+      },
+      "pass_2": {
+        "name": "Pass 2 Look (optional)",
+        "tooltip": "Inherits the previous Look when disconnected; ignored when fewer than two passes are selected."
+      },
+      "pass_3": {
+        "name": "Pass 3 Look (optional)",
+        "tooltip": "Inherits the previous Look when disconnected; ignored when fewer than three passes are selected. Three passes are an advanced experiment."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "NR Pass Stack"
+      },
+      "1": {
+        "name": "Stack JSON"
+      }
+    }
+  },
+  "DLSSExperimentalSequenceHub": {
+    "display_name": "DLSS Prepared Sequence Hub",
+    "description": "Routes one prepared video input to four graph branches. It does not copy frames, rebuild guides, render NR, or make GPU work concurrent; every output shares the same cached preparation.",
+    "inputs": {
+      "sequence": {
+        "name": "Prepared video input",
+        "tooltip": "Connect Video Input Adapter. This node only organizes wiring and performs no video processing."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Branch 1"
+      },
+      "1": {
+        "name": "Branch 2"
+      },
+      "2": {
+        "name": "Branch 3"
+      },
+      "3": {
+        "name": "Branch 4"
+      }
+    }
+  },
   "DLSSExperimentalRuntimeProbe": {
     "display_name": "DLSS 5 Runtime Probe",
     "description": "Detects the host, NVIDIA driver, video tools and installed Proton versions without loading external DLLs.",
@@ -267,6 +321,43 @@
         "name": "Runtime catalog"
       },
       "1": {
+        "name": "Diagnostic report"
+      }
+    }
+  },
+  "DLSSExperimentalSetupHelper": {
+    "display_name": "DLSS Setup Helper",
+    "description": "Checks the selected runtime, host tools, Python packages, platform bridge and optical-flow dependencies without launching the NR Worker/model. Passes the runtime through unchanged.",
+    "inputs": {
+      "runtime": {
+        "name": "Selected runtime",
+        "tooltip": "Connect the exact Runtime Configuration used by Preview/Process. The same runtime is passed through unchanged."
+      },
+      "sequence": {
+        "name": "Video input (recommended)",
+        "tooltip": "Connect Video Input Adapter to check its custom FFmpeg paths, selected guide mode and current input readiness."
+      },
+      "flow_provider": {
+        "name": "Flow provider (without video input)",
+        "tooltip": "Advanced fallback when Video Input Adapter is not connected. Checks this DIS/NVIDIA provider."
+      },
+      "verify_nvidia_flow": {
+        "name": "Query NVIDIA flow capability",
+        "tooltip": "For NVIDIA flow only: starts our host-native NVOF helper and queries the driver/GPU. It never starts the NR Worker or model."
+      },
+      "include_diagnostics": {
+        "name": "Include host diagnostics",
+        "tooltip": "Adds fuller command output. Local paths and GPU details are included in the copyable report."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Checked runtime"
+      },
+      "1": {
+        "name": "Ready"
+      },
+      "2": {
         "name": "Diagnostic report"
       }
     }
@@ -348,11 +439,11 @@
       },
       "profile_b": {
         "name": "Current Look B",
-        "tooltip": "Look being adjusted. video_b contains its preview result."
+        "tooltip": "Connect the NR Look or Pass Stack being adjusted. video_b contains the final-pass preview."
       },
       "profile_a": {
         "name": "Reference Look A (optional)",
-        "tooltip": "Optional second Look. Unconnected means original at matching size/color. Adds an NR pass; does not freeze the Look."
+        "tooltip": "Optional second Look or Pass Stack. Unconnected means original at matching size/color. Parameters are not frozen."
       },
       "start_time": {
         "name": "Preview start (s)",
@@ -390,6 +481,10 @@
       "process_to_end": {
         "name": "Process to video end",
         "tooltip": "Reads remaining duration automatically; start 0 means whole video. The frame button still outputs one frame. Frame/disk capacity checks remain."
+      },
+      "retain_prepared_cache": {
+        "name": "Retain prepared input cache",
+        "tooltip": "Retain small prepared entries for Look reuse, within the shared cache quota. Large ranges always stream without a prepared disk cache. Off removes small entries after success; failures or concurrent retaining consumers keep completed entries. Manage old temporary previews in DLSS Storage Manager."
       }
     },
     "outputs": {
@@ -479,7 +574,7 @@
       },
       "profile": {
         "name": "NR Look",
-        "tooltip": "Look for final output; can be shared with Preview."
+        "tooltip": "Connect one NR Look or a 1-3 stage NR Pass Stack; it can be shared with Preview."
       },
       "start_time": {
         "name": "Output start (s)",
@@ -505,6 +600,10 @@
       "process_to_end": {
         "name": "Process to video end",
         "tooltip": "Output from start to input end, ignoring manual duration. Start 0 and scale 100 give the whole input at its original size."
+      },
+      "retain_prepared_cache": {
+        "name": "Retain prepared input cache",
+        "tooltip": "Retain small prepared entries for Look reuse, within the shared cache quota. Large ranges always stream without a prepared disk cache. Off removes small entries after success; failures or concurrent retaining consumers keep completed entries. Manage old temporary previews in DLSS Storage Manager."
       }
     },
     "outputs": {
@@ -535,6 +634,37 @@
       },
       "1": {
         "name": "Diagnostic report"
+      }
+    }
+  },
+  "DLSSExperimentalStorageManager": {
+    "display_name": "DLSS Storage Manager",
+    "description": "Inspect prepared caches and temporary jobs. Queueing only refreshes; use card buttons to apply shared limits or permanently remove idle entries. Save needed VIDEO outputs first.",
+    "inputs": {
+      "cache_gib": {
+        "name": "Prepared cache limit (GiB)",
+        "tooltip": "Default 2 GiB; inactive least-recently-used cache entries are evicted."
+      },
+      "temporary_gib": {
+        "name": "Temporary jobs limit (GiB)",
+        "tooltip": "Default 8 GiB. When full, new jobs stop; preview media is never automatically deleted."
+      },
+      "job_gib": {
+        "name": "Per-job limit (GiB)",
+        "tooltip": "Default 2 GiB; includes temporary encoded output. Must not exceed total temporary quota."
+      },
+      "entry_mib": {
+        "name": "Cached input threshold (MiB)",
+        "tooltip": "Default 128 MiB. Larger input ranges stream without raw color/motion/intermediate disk files."
+      },
+      "free_gib": {
+        "name": "Minimum disk free space (GiB)",
+        "tooltip": "Default 2 GiB. Rendering checks this reserve periodically."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Storage report"
       }
     }
   }

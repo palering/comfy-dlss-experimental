@@ -9,6 +9,37 @@ Audience: public
 使用 NVIDIA 光流时另需本项目宿主原生 NVOF helper。驱动/Proton 的系统依赖不因此消失。
 完整顺序见[安装与目录布局](distribution.zh-CN.md)。
 
+## 一眼看懂：已经收集的文件最终是否使用
+
+下表只针对**当前 active `direct_nr` 视频后端**，不表示其他文件在原项目里没有用途。
+
+| 已收集文件 | 当前使用？ | 结论 |
+| --- | --- | --- |
+| `DLSS5VideoConverter/bin/runtime/` 中的 `nvngx.dll` | **是，必需** | 外部 D5V2 视频 Worker；作为 PE 程序启动，不导入 Python |
+| 同一 converter runtime 目录中的 `nvngx_dlssnr.dll` | **是，必需** | 由该 Worker 加载的匹配 NR 模型/运行时 |
+| 随 RenoDX/ReShade 文件取得的另一个同名 `nvngx_dlssnr.dll` | **否，除非另行完成配对验证** | 同名不代表 ABI、补丁级别和目标显卡匹配 |
+| ReShade 包的 `dxgi.dll` / 解压得到的 `ReShade64.dll` | **否** | 保留 ReShade 路线的图形代理/hook；direct_nr 没有要注入的应用 |
+| `renodx-dlss5.addon64` 或类似名称 RenoDX add-on | **否** | ReShade add-on；当前 Worker 协议不会加载它 |
+| `nvngx_dlss.dll` | **否** | 其他路线使用的 DLSS Super Resolution 组件；当前输出仍是同分辨率 NR |
+| `D3DCompiler_47.dll` | **否** | 只与特定 ReShade/Wine shader compiler 环境相关 |
+| `sl.*.dll`、`nvngx_dlssg.dll` | **否** | Streamline/FG 组件；这些后端尚未实现 |
+
+两个必需外部文件必须来自同一套已知兼容包，不能仅按文件名挑选。新增的 Setup Helper
+会检查存在性、PE 身份与 Runtime Configuration 记录的哈希，并识别下文已测精确组合；
+但陌生组合是否真正兼容仍须 GPU 执行验证，静态检查不能证明。
+
+### 三种完全不同的 `nvngx.dll`
+
+| 身份 | 常见位置 | 当前后端是否使用 |
+| --- | --- | --- |
+| **视频 Worker 可执行程序** | 用户数据 `components/nr/<bundle>/nvngx.dll`；已测文件为 67,072 字节 | **是。** Relay 以 `--video` 启动；我们的预设中 `worker` 就指它。 |
+| **NVIDIA 驱动 NGX bootstrap** | DriverStore 或 Proton prefix 的 `system32/nvngx.dll`；尺寸/版本由驱动环境管理 | **只作为间接驱动环境。** 不复制覆盖视频 Worker，也不加入预设。 |
+| **调用者验证 shim** | Zonnery 一类项目在播放器旁的 `caller/nvngx.dll` | **否。** 它是为该播放器服务的薄转发 DLL，不实现我们的 D5V2 进程协议。 |
+
+与 Worker 配套的 NR 文件叫 `nvngx_dlssnr.dll`，不是 `nvngx.dll` 的第四种身份。
+两种社区封装的二进制/导出证据以及未来“明确命名 Worker + 独立薄 shim”原则见
+[NGX、Worker 与 shim 的角色边界](RUNTIME_ROLES.zh-CN.md)。
+
 ## 1. 当前实际使用的文件
 
 | 文件 | 实际身份与作用 | 来源 / 获取线索 | 我们如何使用 |
@@ -91,6 +122,15 @@ RTX40 发布说明将模型称为 Ada 社区补丁版，并提到 Uncle Burrito 
 [DLSS-COM](https://github.com/MYT-YEP/DLSS-COM) 使用自己的 D3D12 Worker，要求用户另放模型；
 因此它可能只要求用户补一个模型 DLL。这不表示我们的 relay 已经实现了它的 Worker。
 
+### 两个参考项目的 README 清单如何映射到本项目
+
+| 上游项目 | 它描述的文件/运行时 | 我们复用什么 |
+| --- | --- | --- |
+| [Zonnery/dlss5-nr-player](https://github.com/Zonnery/dlss5-nr-player) | 直接 NGX 播放器构建：重命名为 `_nvngx.dll` 的驱动核心、`nvngx_dlssnr.dll`、NGX 头文件、`caller/nvngx.dll`；其 DX11 bridge 另需 `nvngx_dlss.dll`；ffmpeg/ffprobe 为外部工具 | **不单独复用其 bootstrap/shim/头文件。** README 对直接 NGX 原理有参考价值，但当前选用的外部 Worker 自己承担调用契约。 |
+| [perseval-BLR/DLSS5-Video-Converter](https://github.com/perseval-BLR/DLSS5-Video-Converter) | 完整 Windows 网页应用，带嵌入 Python/FFmpeg 和 `bin/runtime`；其 Release runtime 内含视频 Worker 与模型 | 对已测 RTX40 包，只取 `bin/runtime/nvngx.dll` 与配套 `nvngx_dlssnr.dll`。不复用网页服务、嵌入 Python、打包 ffmpeg、`nvidia-smi.exe`、任务/输出目录或 launcher。 |
+
+两个项目封装的是不同调用架构；它们的文件清单不能相加，同名文件也不能默认互换。
+
 ## 4. 外部文件到底放哪里？
 
 推荐放在**节点源码之外、Comfy 用户数据之内**，每套版本独立：
@@ -104,6 +144,8 @@ ComfyUI/
       nvngx_dlssnr.dll
     runtime-presets/default.json
 ```
+
+完整的源码、用户数据和自动生成目录说明见[项目目录](PROJECT_LAYOUT.zh-CN.md)。
 
 自定义 Comfy user 目录或 COMFY_DLSS_HOME 会改变数据根；以实际配置为准。
 不放 System32、DriverStore、Python site-packages、Proton 系统目录，也不覆盖驱动文件。

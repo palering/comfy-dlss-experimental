@@ -14,6 +14,22 @@ Audience: public
 
 导入只打开文件，需在 Comfy 中保存才进入工作流库；专用测试实例的 user 目录/库独立于主实例。
 
+## Setup Helper 配置预检
+
+在 Runtime Configuration 后添加 **DLSS 配置与环境助手**。建议同时连接 Video Input
+Adapter 的 `sequence`，这样会检查其实际自定义 FFmpeg 路径、输入就绪结果及引导/光流选择；
+未连接时只检查 PATH 与默认 DIS，并把检查范围不足列为提醒。Helper 的 Runtime 输出可接
+Preview/Process，它与输入配置完全相同，没有改写。
+
+节点卡片检查：真实宿主与平台选择、Runtime Configuration 错误、组件存在性/PE 文件头/
+当前 SHA-256、已知 Worker/模型组合、Python 媒体包、ffmpeg/ffprobe、NVIDIA 驱动检测，
+以及 Linux 下的 Proton/Xwayland/Steam。DIS 检查 OpenCV API；NVIDIA 光流检查 NVOF
+helper。高级能力查询只启动本项目宿主原生 NVOF helper 来询问驱动/GPU，始终不会启动
+`nvngx.dll` 或加载 `nvngx_dlssnr.dll`。所以全绿预检仍不能替代单帧 GPU 实测。
+
+卡片可复制完整 JSON；其中有本机路径与 GPU 详情，公开粘贴前应删减。节点只诊断，
+不会下载、移动、改名、补丁任何文件，也不安装 Python 或系统依赖。
+
 ## 节点内预览
 
 设置范围/尺寸，点击“渲染当前帧”或“渲染片段”，只排队该节点及祖先，不触发无关导出。子图内分支提交尚未实现，请用 Comfy 自身执行控制。首次 prefix 可能更慢。
@@ -56,9 +72,9 @@ Preview 是实际产出视频的节点。video_b/video_a 保留预览范围、�
 | 常驻/释放/DLL/Proton | Runtime | 否 |
 | 光流/切镜 | Guides/provider | 否 |
 
-连续处理帧，不是独立 2 秒/30 秒批次。先准备磁盘颜色/运动，再连续送一个 NR 流，再编码；全时长不会插入新分段 reset/预热/接缝。payload 逐帧，元数据列表随帧数增长。并发分段、解码/NR/编码重叠未实现。
+连续处理帧，不是独立 2 秒/30 秒批次。小区间使用有界颜色/运动缓存，大区间逐帧解码/光流/NR/编码，不写原始像素或运动文件；全时长不会插入新分段 reset/预热/接缝。payload 逐帧，元数据列表随帧数增长。独立分段并发仍未实现。
 
-已移除固定 30 秒/2 GiB。准备前估计缓存+输出空间，同文件系统合并需求，保留 **512 MiB**；写入期间定期查空间，但非预留，其他应用仍可占用。空间不足、非法时间或超过 Worker **1,000,000 帧**预算明确失败，不暗中截短。请求范围最多 **86,400 秒**；一小时墙钟 watchdog 是执行时间，慢任务仍可超时。缓存不自动淘汰，长高分视频可能很占盘；报告有解析范围和存储计划（命中时计划属于原准备）。
+没有固定 30 秒视频限制。默认缓存总量 2 GiB、单条原始缓存 128 MiB、临时总量 8 GiB、单任务 2 GiB、磁盘空闲保留 2 GiB，均可配置，见[存储管理](STORAGE.zh-CN.md)。写入期间定期查空间，但不是操作系统预留，其他应用仍可占用。空间不足、非法时间或超过 Worker **1,000,000 帧**预算明确失败，不暗中截短。请求范围最多 **86,400 秒**；一小时墙钟 watchdog 是执行时间，慢任务仍可超时。不活动准备缓存按最近使用淘汰；临时预览须用户明确清理。报告有解析范围和存储计划。
 
 常驻 65,536 帧是复用容量，不是输出长度。更长任务用单独隔离 Worker，并记 resident_fallback，不拆成重置分段。
 
@@ -70,7 +86,14 @@ Preview 是实际产出视频的节点。video_b/video_a 保留预览范围、�
 
 - Guides/provider：DIS/NVIDIA/zero、分析尺寸、切镜、一致性，不管 NR 外观。
 - NR Look：开关、强度、可读风格/预设、局部色调/结构/皮肤、自动 mask、mix、高级 UI/Worker 配置，见[参数响应](nr-look.zh-CN.md)。艺术预设不是 SR Quality/Balanced。
+- NR Pass Stack：把 1–3 个 Look 连接成有序级联，输出直接接 Preview/Process 原 Look 插口；
+  缺少的后层继承上一层。层间用未压缩 RGBA、复用原始引导、最终只编码一次，见
+  [多层 NR](MULTI_PASS_NR.zh-CN.md)。
+- 已准备视频分支 Hub：Input Adapter 后的可选四路接线整理节点。各输出引用同一份准备缓存，
+  不复制帧、不重算光流、不执行 NR，也不启用 GPU 并发。直接把一个 Comfy 输出连接到多个
+  下游同样有效。
 - Runtime：后端、组件、平台/Proton、进程策略，不含艺术参数。
+- Setup Helper：只读校验该 Runtime 及已连接输入/光流依赖，不拥有渲染参数。
 - Preview/Process：范围/尺寸，不复制 Look。自动预览需防抖/有界范围/旧结果处理，当前未实现。
 - Input Adapter：兼容性、色彩、[宿主媒体工具](media-tools.zh-CN.md)；History：预热/前置。
 
@@ -80,12 +103,14 @@ D5V2 一帧颜色+运动进、一帧同尺寸颜色出；无独立输出尺寸�
 
 COMFY_DLSS_HOME 可覆盖默认 ComfyUI/user/default/comfy-dlss-experimental：
 
-- prepared-clips/：颜色/运动 spool、manifest。
+- prepared-clips/：颜色/运动 spool、manifest。Preview Session 与 Process Video
+  均有“保留输入准备缓存”开关，默认开启；关闭后仅在任务成功时删除该任务的精确条目。
+  失败时保留便于重试，并发使用者尚未结束时不会误删。
 - runtime-snapshots/：三组件哈希校验副本，非硬链接。
 - prefixes/：按运行时/平台/Proton/显示分开的 prefix。
 - cache/、tmp/：Worker 环境缓存；executions/：任务记录。
 
-Comfy temp 中 dlss-experimental/<session>/a、b 和报告。Process 输出直到 Save Video 才正式保存。完成任务 raw 输出删除，准备数据和失败证据保留。暂无清理 UI/自动淘汰，只清理准确识别的不活动目录，不删活动 prefix。
+Comfy temp 中 dlss-experimental/<session>/a、b 和报告。Process 输出直到 Save Video 才正式保存。完成任务 raw 输出删除；小型准备数据默认保留，也可由上述单任务开关在成功后删除。大型区间流式处理，不写准备 raw。新增 **DLSS Storage Manager** 可查看、复制、移除准确识别的不活动生成条目及修改上限；不删除正式输出、源视频、运行时快照或 prefix。
 
 换 DLL 改快照/prefix key。默认每 variant 隔离；可选常驻仅复用已验证哈希对和兼容 NR/尺寸/运行时，按需启动、任务 reset、默认空闲 300 秒（30–900）释放。关闭后空闲立即释放或等任务结束，也可手动释放。不同 A/B Look 需替换，不热改，见[常驻](preview-performance.zh-CN.md#opt-in-resident-worker)。Linux 按唯一 marker/pidfd 清理，禁止泛化名称 kill。
 

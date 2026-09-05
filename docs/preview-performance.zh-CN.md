@@ -11,6 +11,7 @@ Audience: public
 - 未有结果前游标只是时间选择器（UI 步进回退 24 fps）；渲染后用源帧率。拖动不逐次解码未渲染源图；单帧结果停在其记录时间直到下次完成。
 - 控件分为渲染操作、四等宽对比模式、分割线、播放/时间轴；按钮有 pressed/focus 状态，窄卡片显式换行。
 - 颜色/光流独立于 Look 缓存；适配原始 A 的编码也缓存在 prepared-clips/<key>/original-preview-v1/，校验长度及 SHA256后复制到 Comfy temp 供 /view 使用。连接 Look 的 A 是额外 NR 渲染，不用原图缓存。
+- Preview Session 与 Process Video 默认保留该准备条目。关闭“保留输入准备缓存”后，只在任务成功时删除这一条精确缓存；失败时保留便于重试。并发分支使用租约计数，任一分支要求保留或执行失败都会阻止删除。该选项不会删除源/输出视频、DLL、运行时快照或 Proton prefix。
 - 性能改进没有省略必要重建、历史、色彩转换或质量设置。
 
 ## 诊断位置
@@ -33,7 +34,7 @@ Preview 显示节点执行总墙钟时间和阶段明细；展开后随卡片高
 - 资源每秒采样（旧记录 2 秒）；短任务可能无采样，也可能漏峰值。仅归属带标记的 Linux relay/Proton/Worker；RSS 相加可能重复计算共享内存。CPU 是累计 CPU 秒，不是瞬时百分比。
 - GPU 利用率/总显存是整卡。Worker 显存匹配 NVIDIA graphics/compute PID，缺失/不支持保持不可用而非假 0。Windows 暂无等价所属进程 RSS 收集。
 - SHA256 是精确组件身份，尚不解析产品/FileVersion，不是人类版本号。
-- UI 历史有上限，磁盘记录/缓存暂无自动淘汰；中断残留可保留诊断。
+- 磁盘执行记录保留最近 1,000 条；准备条目受容量 LRU 和单任务保留选项管理。临时任务受配额保护，可在[存储管理节点](STORAGE.zh-CN.md)中明确删除。
 - 默认隔离，常驻需开启；打开监控或开关不会启动模型或渲染。
 - worker_startup 截止到 relay 子进程已创建握手，不代表 NR-ready。首帧包含初始化、传输、预热与结果，不是单独 120 次评估时间。协议没有更细时间戳。复用使用 history_reset_first_frame；冷 startup 包含在 worker_acquire 中，不能重复相加。
 
@@ -79,7 +80,7 @@ check_preview_performance.py 在独立空闲实例复现；--runtime-preset 比�
 ## 后续优化与并发边界
 
 1. 测量完整性读、管道/socket 拷贝、上传/回读和同步。cache_read_verify 单列缓存检查；GPU 时间戳需 Worker 支持。减少拷贝须有字节等价/取消回归，不能直接取消完整性检查。
-2. A 编码已复用，后续可探索有界 decode/flow→NR→encode 重叠和编码选项，改编码须另验质量/色彩/音频，不暗改 NVENC/CRF。移除 30 秒/2 GiB 是磁盘准入改进，不等于流水线，见[范围与机制](comfy-video-nodes.zh-CN.md#output-range-and-processing-mechanisms)。
+2. 小型缓存区间复用 A 编码；大型区间已使用有界 decode/flow→NR→管道编码，不写原始帧文件，见[存储策略](STORAGE.zh-CN.md)。编解码器/模型工作区仍占额外内存。后续编码改动须另验质量/色彩/音频；本次不更换 NVENC 或 CRF。
 3. 常驻已避免兼容任务的初始化；Look 变化仍需新实例。进一步优化需验证重配置协议或其他 Worker，不是仅保留 Python。
 4. 分段并发**未开启**。GPU/prefix 锁仍单任务；多实例需要独立 prefix/会话、准入和各尺寸峰值 RAM/VRAM 与安全余量，不能仅据瞬时空闲显存。
 5. 镜头内分段丢历史，需真实前置帧、独立预热、重叠丢弃、顺序 PTS/音频拼接及连续结果对照；固定重叠不保证等价。优先已确认切镜，只在速度收益且无内存压力/接缝时试双 Worker，否则退回 1。本版不声称动态分段加速。

@@ -26,9 +26,17 @@ See [the direct NR contract](direct-nr-relay.en.md).
 
 Python handles video decoding, optional SDR working-transfer normalization,
 optical flow, scene-cut resets, pre-roll, audio, encoding and atomic output.
-Preparation is disk-backed and currently sequential with NR and encoding.
-Look changes reuse independent prepared-input caches when their keys match.
-There is no concurrent chunk scheduler or overlapped decode/NR/encode pipeline.
+Small inputs use quota-bounded disk caches. Larger ranges scan timing and then
+stream decode/flow/NR/encoding with one input frame in flight. Look changes can
+reuse retained small entries; large streamed ranges recompute guides.
+See [storage and limits](STORAGE.en.md).
+
+An optional `DLSS NR Pass Stack` runs one to three stages over the same prepared
+input. A later stage consumes the prior uncompressed RGBA result; all stages reuse
+source motion/timestamps/cut flags, reset independent history, and encode only the
+final output. This is a host-orchestrated experimental cascade; it does not implement
+SR/FG. Streaming uses one independent Worker per layer; small cached ranges retain
+the sequential whole-pass implementation. See [multi-pass NR](MULTI_PASS_NR.en.md).
 
 Host media tools are separate from Proton. Input Adapter paths travel with the
 sequence into task-local execution, without global PATH mutation. Prepared caches
@@ -67,6 +75,16 @@ A worker crash fails its job rather than loading failed native state into
 Comfy. Windows Job Objects and Linux marked-process cleanup bound ownership;
 unrelated Wine processes must never be killed by name. A subprocess or Proton
 prefix is a crash boundary, **not a security sandbox for untrusted binaries**.
+
+### Worker/shim refactoring boundary
+
+The active external `nvngx.dll --video` is a complete console Worker, not the
+thin forwarding DLL meant by Zonnery's `caller/nvngx.dll`. A project-owned backend
+will split them explicitly: `comfy-dlss-worker.exe` owns devices, resources,
+protocol, and feature lifecycle; an optional `caller/nvngx.dll` forwards only
+typed Init/Create/Evaluate/Release calls and is enabled only for a runtime that
+actually enforces caller validation. The current D5V2 backend remains available
+during migration without silently changing old presets. See [runtime roles](RUNTIME_ROLES.en.md).
 
 ## Media contracts and unsupported capabilities
 

@@ -12,7 +12,8 @@ Audience: public
 > Windows 代码和 CI 已有，但 Windows GPU 实机验收仍待完成。
 
 [快速开始](#quick-start) · [前置条件](#前置条件) ·
-[自行构建](#build-from-source) · [示例工作流](#示例工作流)
+[项目目录](#project-layout) · [自行构建](#build-from-source) ·
+[示例工作流](#示例工作流)
 
 <a id="quick-start"></a>
 
@@ -48,6 +49,9 @@ Audience: public
    在“加载视频”选择素材；“运行时配置”选择预设，Linux 下再选择已安装的 Proton。
    “视频输入适配”按需填写媒体工具路径，点击“检查输入”，处理报告中的输入/色彩问题。
 
+   如需完整预检，添加 **DLSS 配置与环境助手**，连接“运行时配置”和“视频输入适配”输出，
+   点击“检查所选配置”。它原样透传 Runtime，可继续连接 Preview/Process。
+
 6. **预览与保存**：调整“NR 效果”，在 A/B 预览卡片点击“渲染当前帧”。
    再检查一小段视频；正式导出打开[完整视频导出](example_workflows/dlss_native_process.json)：
    **处理视频 → 保存视频**，输出尺寸 100、起点 0，勾选“处理到视频末尾”。
@@ -62,8 +66,10 @@ Audience: public
 - 在节点卡片内渲染游标处单帧或选定视频区间。
 - 滑动、并排、交替与差异对比：原始输入对结果，或两套 NR 效果。
 - **NR Look** 调节增强强度、风格和实验参数。
+- **NR Pass Stack** 将 1–3 个 Look 无损级联，复用原始运动引导且只编码最终结果。
 - 可连接的 **DIS CPU 光流**与可选 **NVIDIA 硬件光流**。
 - 视频信息检查、显式解释缺失色彩标签、可选 SDR → sRGB 工作空间转换。
+- **配置与环境助手**汇总校验已选运行时、组件哈希、媒体/Python 依赖、平台桥接和实际光流配置。
 - 独立缓存颜色/光流准备结果；改 Look 不重复准备相同输入。
 - 按任务释放或懒加载常驻 Worker，查看耗时、资源、记录并手动释放。
 - 输出标准 **VIDEO**，连接 ComfyUI 原生 **保存视频 / Save Video**。
@@ -105,6 +111,42 @@ Audience: public
 [DLL 专项文档](docs/DLL_PREPARATION.zh-CN.md)已列出来源、包内位置、SHA-256、显卡验证范围、
 放置目录、预设配对以及可选光流的驱动库。运行时文件放源码外；
 `COMFY_DLSS_HOME` 可覆盖默认数据根。
+
+#### 已下载文件在当前后端中的结论
+
+| 文件 | 当前结论 |
+| --- | --- |
+| Video Converter `bin/runtime/nvngx.dll` | **必需的外部文件。** 虽然后缀是 `.dll`，实际是接收 D5V2 视频流的 Worker 可执行程序。 |
+| 与它配套的 Video Converter `nvngx_dlssnr.dll` | **必需的外部文件。** 必须与 Worker 配套；同名 RenoDX/Discord 文件不能自动视为可互换。 |
+| `dlss-native-relay.exe` | **必需的本项目 helper。** 从本仓库源码构建，不是 NVIDIA 下载文件，也不是把某个 DLL 改名而来。 |
+| `dlss-nvof-helper[.exe]` | **可选的本项目 helper。** 只有 NVIDIA 光流需要；DIS 不用。 |
+| ReShade `dxgi.dll`、`renodx-dlss5*.addon64` | 当前 `direct_nr` 后端**没有使用**；只保留为研究路线材料。 |
+| `nvngx_dlss.dll`、`D3DCompiler_47.dll`、`sl.*.dll`、独立 caller shim | 当前后端**没有使用**。不要把 SR/Streamline/ReShade 的清单混入本 NR 配置。 |
+
+[外部文件专项文档](docs/DLL_PREPARATION.zh-CN.md)把 Zonnery 播放器和 DLSS5 Video
+Converter 的不同文件要求逐项映射到我们的后端，并区分三种身份完全不同的 `nvngx.dll`。
+
+<a id="project-layout"></a>
+
+## 项目目录
+
+```text
+ComfyUI/
+├── custom_nodes/comfy-dlss-experimental/       # Git checkout：源码/UI/测试/模板
+└── user/default/comfy-dlss-experimental/       # 用户数据，不属于 Git
+    ├── components/nr/<bundle>/
+    │   ├── nvngx.dll                           # 外部 Worker
+    │   └── nvngx_dlssnr.dll                    # 匹配的外部模型
+    ├── runtime-presets/default.json             # 用户选择的绑定
+    ├── prepared-clips/                          # 自动生成的颜色/运动缓存
+    ├── runtime-snapshots/                       # 自动生成的校验副本
+    ├── prefixes/                                # 自动生成的 Proton 状态
+    └── executions/                              # 自动生成的任务记录
+```
+
+本项目自行构建的 helper 位于 checkout 的 `sidecar/build/`；版本化安装包位于
+`sidecar/bin/<platform>/<version>/`，它们不是外部 DLL。完整注释见
+[仓库与数据目录树](docs/PROJECT_LAYOUT.zh-CN.md)。
 
 <a id="build-from-source"></a>
 
@@ -170,11 +212,14 @@ Windows 目标改为 `--target windows-x86_64`。输出为 `sidecar/build/dlss-n
 - [外部 Worker 与 DLL 准备](docs/DLL_PREPARATION.zh-CN.md)
 - [节点说明及输出范围](docs/comfy-video-nodes.zh-CN.md)
 - [NR Look 参数](docs/nr-look.zh-CN.md)
+- [多层 NR 轮次](docs/MULTI_PASS_NR.zh-CN.md)
 - [FFmpeg 依赖与路径](docs/media-tools.zh-CN.md)
 - [输入适配与色彩](docs/video-input-adapter.zh-CN.md)
 - [NVIDIA 光流](docs/nvidia-optical-flow.zh-CN.md)
 - [性能、常驻与监控](docs/preview-performance.zh-CN.md)
-- [架构设计](docs/ARCHITECTURE.zh-CN.md) · [直接 NR 协议](docs/direct-nr-relay.zh-CN.md)
+- [存储上限、流式处理与文件清理](docs/STORAGE.zh-CN.md)
+- [架构设计](docs/ARCHITECTURE.zh-CN.md) · [运行时角色与薄 shim 原则](docs/RUNTIME_ROLES.zh-CN.md) · [直接 NR 协议](docs/direct-nr-relay.zh-CN.md)
+- [项目与运行时目录结构](docs/PROJECT_LAYOUT.zh-CN.md)
 - [开发说明](docs/DEVELOPMENT.zh-CN.md) · [完整文档索引](docs/README.zh-CN.md)
 
 ## 许可与安全

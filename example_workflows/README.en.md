@@ -22,5 +22,11 @@ duration 0, size 100 and **Process to end** enabled. Preview examples default to
 one cursor frame at 50 percent to reduce iteration cost; use a short range and
 100 percent before judging final temporal/full-resolution quality.
 
+To try multi-pass NR in any example, add **DLSS NR Pass Stack**, connect the
+existing Look to pass 1, and start with two passes. Connect a second Look to
+pass 2 or leave it disconnected to inherit pass 1. Connect the stack output to
+the Preview/Process socket that previously received the Look. Compare one and
+two passes on a frame before a moving range; see [multi-pass NR](../docs/MULTI_PASS_NR.en.md).
+
 No Worker, model DLL or source media is included. Importing does not add the
 workflow to Comfy's saved workflow library; save it explicitly if wanted.

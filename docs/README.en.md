@@ -10,16 +10,19 @@ User setup, implemented behavior and engineering contracts live here.
 
 1. [Installation and platforms](distribution.en.md): clone, helpers, runtime selection and validation limits.
 2. [Host FFmpeg/PyAV](media-tools.en.md) and [external runtime files](DLL_PREPARATION.en.md): what to obtain separately and how to bind versions.
-3. [Node quickstart](comfy-video-nodes.en.md): preview, process and save a video.
-4. [Interface localization](i18n.en.md) and [example workflows](../example_workflows/README.en.md).
+3. [Project and runtime layout](PROJECT_LAYOUT.en.md): what belongs in Git, user data and generated storage.
+4. [Node quickstart](comfy-video-nodes.en.md): preflight, preview, process and save a video.
+5. [Interface localization](i18n.en.md) and [example workflows](../example_workflows/README.en.md).
 
 For agent handoff and private process state, read `.agent-docs/process.md` locally when it exists. `.agent-docs/` should stay out of git.
 
 ## Documentation Areas
 
+- [Storage limits, streaming and file cleanup](STORAGE.en.md).
+
 - [Input adapter](video-input-adapter.en.md), [motion/input contract](nr-input-reconstruction.en.md), [NVIDIA optical flow](nvidia-optical-flow.en.md).
-- [NR Look controls](nr-look.en.md), [preview, performance and worker lifecycle](preview-performance.en.md).
-- [Architecture](ARCHITECTURE.en.md), [direct NR protocol](direct-nr-relay.en.md), [runtime boundaries](dlss5-runtime-research-2026-09.en.md).
+- [NR Look controls](nr-look.en.md), [multi-pass NR](MULTI_PASS_NR.en.md), [preview, performance and worker lifecycle](preview-performance.en.md).
+- [Project layout](PROJECT_LAYOUT.en.md), [architecture](ARCHITECTURE.en.md), [runtime roles](RUNTIME_ROLES.en.md), [direct NR protocol](direct-nr-relay.en.md), [runtime boundaries](dlss5-runtime-research-2026-09.en.md).
 - [Development and publication](DEVELOPMENT.en.md), [C++ quality](sidecar-cpp-quality.en.md), [video diagnostic](video-nr-validation.en.md).
 - [guide.en.md](guide.en.md): documentation visibility and update routing.
 

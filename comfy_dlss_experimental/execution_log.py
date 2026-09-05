@@ -96,6 +96,13 @@ def cached_gpu_snapshot():
 
 
 def owned_resources(marker):
+    if isinstance(marker, (list, tuple)):
+        groups = [owned_resources(m) for m in set(marker)]
+        processes = {p["pid"]: p for group in groups for p in group["processes"]}
+        available = any(g["available"] for g in groups)
+        return {"available": available, "processes": list(processes.values()),
+                "rss_mib": sum(p["rss_mib"] for p in processes.values()) if available else None,
+                "cpu_seconds": sum(p["cpu_seconds"] for p in processes.values()) if available else None}
     if not marker or not sys.platform.startswith("linux"):
         return {"available": False, "processes": [], "rss_mib": None, "cpu_seconds": None}
     # Match only this launched process family, never all Wine/NVIDIA processes.
@@ -140,6 +147,7 @@ class ExecutionTrace:
         self.stage = "validation"
         self.stages = {}
         self.marker = None
+        self.markers = []
         self.worker_state = "not_started"
         self.release_requested = threading.Event()
         self.preview = None
@@ -154,7 +162,8 @@ class ExecutionTrace:
                        "created_at": time.time(), "state": "running",
                        "parameters": {k: copy.deepcopy(v) for k, v in kwargs.items()
                                       if k in {"contract", "profile", "profile_a", "profile_b", "start_time",
-                                               "duration", "preview_scale", "scale", "preview_mode", "cursor_time", "process_to_end"}},
+                                               "duration", "preview_scale", "scale", "preview_mode", "cursor_time",
+                                               "process_to_end", "retain_prepared_cache"}},
                        "input": copy.deepcopy(kwargs.get("sequence", {}).get("public", {})),
                        "guides": copy.deepcopy(kwargs.get("sequence", {}).get("settings", {})),
                        "color_policy": copy.deepcopy(kwargs.get("sequence", {}).get("color_policy", {})),
@@ -171,7 +180,7 @@ class ExecutionTrace:
         while not self._stop.wait(RESOURCE_SAMPLE_SECONDS):
             try:
                 with _lock:
-                    marker, worker_state = self.marker, self.worker_state
+                    marker, worker_state = self.markers or self.marker, self.worker_state
                 if not marker or worker_state not in {"starting", "running", "releasing"}:
                     continue
                 sample = resource_snapshot(marker, worker_state)
@@ -204,7 +213,8 @@ def tracked(kind):
             from .config import data_root
             trace = ExecutionTrace(kind, kwargs)
             token = _current.set(trace)
-            with _lock:
+            from .storage_manager import LOCK
+            with LOCK, _lock:
                 _active[trace.id] = trace
             trace.sampler.start()
             try:
@@ -231,6 +241,8 @@ def tracked(kind):
                     temporary = target.with_suffix(".partial")
                     temporary.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
                     temporary.replace(target)
+                    from .storage_manager import prune_execution_records
+                    prune_execution_records(data_root())
                     if trace.preview is not None:
                         from .preview import preview_sessions, send_preview_event
                         public = preview_sessions.update(trace.preview, execution=snapshot | {"result": None})

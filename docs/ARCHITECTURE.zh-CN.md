@@ -20,7 +20,12 @@ Comfy VIDEO / Input Adapter
 
 Relay 只是进程与管道桥接器，不实现 NGX。外部 Worker 虽名为 DLL，实际是 Windows 可执行程序；任意同名驱动 DLL 或 caller shim 都不能替代其视频协议。详见[直接 NR 契约](direct-nr-relay.zh-CN.md)。
 
-Python 负责解码、可选 SDR 工作传递函数转换、光流、切镜重置、前置帧、音频、编码与原子发布输出。准备数据写磁盘，目前准备、NR、编码顺序执行，没有分段并发调度或流水线重叠。缓存键一致时，修改 Look 复用准备结果。
+Python 负责解码、可选 SDR 工作传递函数转换、光流、切镜重置、前置帧、音频、编码与原子发布输出。小区间使用有配额的磁盘缓存；大区间先扫描时序，再逐帧执行解码/光流/NR/编码。修改 Look 可复用保留的小条目，大区间流式任务会重新计算光流，见[存储上限](STORAGE.zh-CN.md)。
+
+可选 `DLSS NR Pass Stack` 在同一准备结果上顺序执行 1–3 层：下一层读取上一层未压缩
+RGBA，所有层复用原始运动/时间戳/切镜标记，每层重置独立历史，最终只编码一次。
+流式模式为每层使用独立 Worker，小型缓存模式保留整段逐层实现。这仍不是 SR/FG；详见
+[多层 NR](MULTI_PASS_NR.zh-CN.md)。
 
 宿主媒体程序的选择与 Proton 分离。Input Adapter 的路径配置沿 sequence 传入任务，通过任务局部上下文使用，不修改全局 PATH；缓存记录工具身份。PyAV 版本与外部命令分别报告，见[媒体工具](media-tools.zh-CN.md)。
 
@@ -41,6 +46,14 @@ Linux 自动显示选择在 Wayland 桌面上仍使用 Xwayland。原生 Wayland
 默认按任务隔离并释放。可选常驻模式按需启动兼容 Worker/模型，串行执行任务，任务间重置历史，直到空闲超时、手动释放或配置不兼容。复用仅允许已验证的内容哈希对，损坏流被丢弃，见[生命周期与监控](preview-performance.zh-CN.md)。
 
 Worker 崩溃只令任务失败，不把失败的原生状态带入 Comfy。Windows Job Object 和 Linux 标记进程清理限定所有权；禁止按通用名称杀掉无关 Wine 进程。子进程/prefix 是崩溃边界，**不是运行不可信二进制的安全沙箱**。
+
+### Worker/shim 重构边界
+
+当前外部 `nvngx.dll --video` 是完整控制台 Worker，不是 Zonnery `caller/nvngx.dll`
+那种薄转发 DLL。后续自研后端把两者明确拆开：`comfy-dlss-worker.exe` 拥有设备、资源、
+协议和 Feature 生命周期；可选 `caller/nvngx.dll` 只转发有类型的 Init/Create/Evaluate/
+Release，且仅在所选运行库确实要求调用者验证时启用。当前 D5V2 后端在迁移期间保留，
+不静默改变旧预设。完整二进制证据和设计原则见[运行时角色](RUNTIME_ROLES.zh-CN.md)。
 
 ## 媒体契约与未实现能力
 

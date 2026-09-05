@@ -1,0 +1,16 @@
+.dlss-storage { box-sizing:border-box; width:100%; max-width:100%; min-width:0; height:100%; min-height:0; display:flex; flex-direction:column; gap:8px; overflow:hidden; contain:inline-size; padding:10px; background:#151a22; color:var(--fg-color,#eee); border:1px solid #394455; border-radius:8px; font:12px/1.5 system-ui,sans-serif; }
+.dlss-storage * { box-sizing:border-box; min-width:0; max-width:100%; overflow-wrap:anywhere; }
+.dlss-storage-actions { display:flex; flex-wrap:wrap; gap:6px; flex:none; }
+.dlss-storage select { flex:none; width:100%; background:#233748; color:inherit; padding:5px; border:1px solid #45677e; border-radius:5px; }
+.dlss-storage button { flex:1 1 135px; white-space:normal; padding:6px 8px; border:1px solid #45677e; border-radius:5px; background:#233748; color:inherit; cursor:pointer; }
+.dlss-storage button:disabled { opacity:.45; cursor:default; }
+.dlss-storage button:focus-visible { outline:2px solid #7ec5ff; }
+.dlss-storage p { margin:0; flex:none; }
+.dlss-storage pre { margin:0; white-space:pre-wrap; font:11px/1.4 ui-monospace,monospace; }
+.dlss-storage-list { overflow:auto; flex:1 1 100px; min-height:60px; }
+.dlss-storage-entry { padding:8px 0; border-top:1px solid #394455; }
+.dlss-storage-entry label { display:flex; align-items:center; gap:8px; }
+.dlss-storage input[type=checkbox] { flex:none; width:16px; height:16px; }
+.dlss-storage details { margin-top:4px; }
+.dlss-storage summary { cursor:pointer; }
+.dlss-storage textarea { width:100%; min-height:70px; flex:1; color:inherit; background:#10151c; }

@@ -86,4 +86,6 @@ def register_preview_routes() -> None:
             raise web.HTTPNotFound(text="Unknown preview session")
         return web.json_response({"cancel_requested": True})
 
+    from .storage_api import register_storage_routes
+    register_storage_routes(routes)
     _routes_registered = True

@@ -13,7 +13,8 @@ in-node A/B previews and a separate final-export path.
 > Linux/Proton has GPU validation; Windows GPU validation is still pending.
 
 [Quick Start](#quick-start) · [Prerequisites](#prerequisites) ·
-[Build from source](#build-from-source) · [Example workflows](#example-workflows)
+[Project layout](#project-layout) · [Build from source](#build-from-source) ·
+[Example workflows](#example-workflows)
 
 <a id="quick-start"></a>
 
@@ -50,6 +51,10 @@ Complete the prerequisites below first; source-only cloning cannot render NR.
    and, on Linux, an installed Proton. In **Video Input Adapter**, set media paths
    only if needed and click **Check input**; resolve reported input/color issues.
 
+   For a complete preflight, add **DLSS Setup Helper**, connect the Runtime
+   Configuration and Video Input Adapter outputs, then click **Check selected
+   configuration**. Its runtime output is an unchanged pass-through for Preview/Process.
+
 6. **Preview and save.** Adjust **NR Look**, then click **Render current frame**
    in the A/B preview card. Check a short range before opening
    [Full-video export](example_workflows/dlss_native_process.json):
@@ -65,8 +70,11 @@ for portable Python, custom data directories and troubleshooting.
 - Preview a cursor frame or a selected range inside the node card.
 - Compare original/result or two Looks with wipe, side-by-side, flicker and difference.
 - Adjust NR intensity, style and experimental controls in **NR Look**.
+- Cascade one to three Looks without intermediate video encoding using **NR Pass Stack**.
 - Choose **DIS CPU** or optional **NVIDIA hardware optical flow**.
 - Inspect video metadata; optionally normalize supported SDR input to sRGB.
+- Preflight the selected runtime, component hashes, media/Python dependencies,
+  platform bridge and actual optical-flow configuration in **Setup Helper**.
 - Reuse prepared color/flow caches when changing Looks.
 - Use isolated or lazy-resident Workers, with timing, history and manual release.
 - Export a standard **VIDEO** through ComfyUI's native **Save Video** node.
@@ -110,6 +118,43 @@ converter's web service are not required.**
 [The DLL guide](docs/DLL_PREPARATION.en.md) lists provenance, archive members,
 SHA-256, GPU validation limits, placement, preset pairing and optional driver libraries.
 Keep runtime files outside source; `COMFY_DLSS_HOME` can override the data root.
+
+#### Downloaded-file audit for the current backend
+
+| File | Current status |
+| --- | --- |
+| Video Converter `bin/runtime/nvngx.dll` | **Required external file.** It is the D5V2 video Worker executable, despite its `.dll` suffix. |
+| Matching Video Converter `nvngx_dlssnr.dll` | **Required external file.** Use the model paired with that Worker; a same-named RenoDX/Discord file is not automatically interchangeable. |
+| `dlss-native-relay.exe` | **Required project helper.** Built from this repository; it is not downloaded from NVIDIA and was not renamed from another DLL. |
+| `dlss-nvof-helper[.exe]` | **Optional project helper.** Required only for NVIDIA optical flow; DIS does not use it. |
+| ReShade `dxgi.dll`, `renodx-dlss5*.addon64` | **Not used** by the active `direct_nr` backend; retained only as research-route inputs. |
+| `nvngx_dlss.dll`, `D3DCompiler_47.dll`, `sl.*.dll`, separate caller shim | **Not used** by the active backend. SR/Streamline/ReShade requirements must not be mixed into this NR setup. |
+
+The [external-file guide](docs/DLL_PREPARATION.en.md) maps the different
+requirements described by Zonnery's player and DLSS5 Video Converter to our
+backend and distinguishes the three unrelated `nvngx.dll` identities.
+
+<a id="project-layout"></a>
+
+## Project layout
+
+```text
+ComfyUI/
+├── custom_nodes/comfy-dlss-experimental/       # Git checkout: source/UI/tests/templates
+└── user/default/comfy-dlss-experimental/       # user data; not part of Git
+    ├── components/nr/<bundle>/
+    │   ├── nvngx.dll                           # external Worker
+    │   └── nvngx_dlssnr.dll                    # matching external model
+    ├── runtime-presets/default.json             # user-selected bindings
+    ├── prepared-clips/                          # generated color/motion caches
+    ├── runtime-snapshots/                       # generated verified copies
+    ├── prefixes/                                # generated Proton state
+    └── executions/                              # generated task records
+```
+
+Our source-built helpers live under the checkout's `sidecar/build/`, or a
+versioned helper package under `sidecar/bin/<platform>/<version>/`. They are not
+external DLLs. See the [annotated repository and data tree](docs/PROJECT_LAYOUT.en.md).
 
 <a id="build-from-source"></a>
 
@@ -179,11 +224,14 @@ See [translation coverage and contribution rules](docs/i18n.en.md).
 - [External Worker and DLL preparation](docs/DLL_PREPARATION.en.md)
 - [Nodes and output ranges](docs/comfy-video-nodes.en.md)
 - [NR Look controls](docs/nr-look.en.md)
+- [Multi-pass NR](docs/MULTI_PASS_NR.en.md)
 - [FFmpeg setup and paths](docs/media-tools.en.md)
 - [Input adapter and color](docs/video-input-adapter.en.md)
 - [NVIDIA optical flow](docs/nvidia-optical-flow.en.md)
 - [Performance, residency and monitoring](docs/preview-performance.en.md)
-- [Architecture](docs/ARCHITECTURE.en.md) · [direct NR protocol](docs/direct-nr-relay.en.md)
+- [Storage limits, streaming and file cleanup](docs/STORAGE.en.md)
+- [Architecture](docs/ARCHITECTURE.en.md) · [runtime roles and thin-shim rule](docs/RUNTIME_ROLES.en.md) · [direct NR protocol](docs/direct-nr-relay.en.md)
+- [Project and runtime directory layout](docs/PROJECT_LAYOUT.en.md)
 - [Development](docs/DEVELOPMENT.en.md) · [all documentation](docs/README.en.md)
 
 ## License and safety

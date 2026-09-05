@@ -253,6 +253,60 @@
       }
     }
   },
+  "DLSSExperimentalNRPassStack": {
+    "display_name": "DLSS NR 多層輪次",
+    "description": "依序疊加一至三個 NR 效果。每層讀取上一層未壓縮 RGBA 結果、重用輸入引導，並重設自己的時序歷史。它是非官方實驗，不是 SR、FG 或品質模式。",
+    "inputs": {
+      "pass_count": {
+        "name": "NR 輪次",
+        "tooltip": "執行一至三次 Feature 18。耗時與生成式偏移通常隨輪次增加；建議先用兩層單幀或短片驗證。"
+      },
+      "pass_1": {
+        "name": "第 1 層效果",
+        "tooltip": "第一層必要的 NR 效果。"
+      },
+      "pass_2": {
+        "name": "第 2 層效果（可選）",
+        "tooltip": "未連接時繼承上一層；輪次少於 2 時忽略。"
+      },
+      "pass_3": {
+        "name": "第 3 層效果（可選）",
+        "tooltip": "未連接時繼承上一層；輪次少於 3 時忽略。三層屬於進階實驗。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "NR 多層輪次"
+      },
+      "1": {
+        "name": "輪次 JSON"
+      }
+    }
+  },
+  "DLSSExperimentalSequenceHub": {
+    "display_name": "DLSS 已準備影片分支 Hub",
+    "description": "把一份已準備的影片輸入引到四條工作流程分支；不複製影格、不重建引導、不執行 NR，也不會讓 GPU 工作自動並行。所有輸出共用同一份快取準備結果。",
+    "inputs": {
+      "sequence": {
+        "name": "已準備的影片輸入",
+        "tooltip": "連接 Video Input Adapter。此節點只整理接線，不執行影片處理。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "分支 1"
+      },
+      "1": {
+        "name": "分支 2"
+      },
+      "2": {
+        "name": "分支 3"
+      },
+      "3": {
+        "name": "分支 4"
+      }
+    }
+  },
   "DLSSExperimentalRuntimeProbe": {
     "display_name": "DLSS 5 环境检测",
     "description": "检测宿主、NVIDIA 驱动、视频工具及已安装的 Proton，不加载外部 DLL。",
@@ -268,6 +322,43 @@
       },
       "1": {
         "name": "诊断报告"
+      }
+    }
+  },
+  "DLSSExperimentalSetupHelper": {
+    "display_name": "DLSS 配置與環境助手",
+    "description": "檢查已選執行環境、宿主工具、Python 套件、跨平台執行橋及光流依賴，不啟動 NR Worker 或載入 NR 模型；執行環境配置原樣傳遞。",
+    "inputs": {
+      "runtime": {
+        "name": "已選執行環境",
+        "tooltip": "連接 Preview/Process 實際使用的 Runtime Configuration；檢查後原樣輸出同一配置。"
+      },
+      "sequence": {
+        "name": "影片輸入（建議連接）",
+        "tooltip": "連接 Video Input Adapter，可檢查其自訂 FFmpeg 路徑、實際引導模式和目前輸入就緒狀態。"
+      },
+      "flow_provider": {
+        "name": "光流提供器（未接影片輸入時）",
+        "tooltip": "進階備用輸入。未連接 Video Input Adapter 時，用於檢查這套 DIS/NVIDIA 光流配置。"
+      },
+      "verify_nvidia_flow": {
+        "name": "查詢 NVIDIA 光流能力",
+        "tooltip": "僅 NVIDIA 光流：啟動本專案宿主原生 NVOF helper 查詢驅動/GPU；不會啟動 NR Worker 或載入 NR 模型。"
+      },
+      "include_diagnostics": {
+        "name": "包含宿主詳細資訊",
+        "tooltip": "加入更完整的命令輸出；可複製報告中會包含本機路徑與 GPU 資訊。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "已檢查執行環境"
+      },
+      "1": {
+        "name": "是否就緒"
+      },
+      "2": {
+        "name": "診斷報告"
       }
     }
   },
@@ -348,11 +439,11 @@
       },
       "profile_b": {
         "name": "当前效果 B",
-        "tooltip": "当前调节的效果；video_b 输出其预览结果。"
+        "tooltip": "連接目前調整的 NR 效果或多層輪次；video_b 輸出最終層預覽。"
       },
       "profile_a": {
         "name": "对照效果 A（可选）",
-        "tooltip": "可选第二套效果。未接时是同尺寸同色彩的输入对照。连接后增加一次 NR，不会冻结参数。"
+        "tooltip": "可選第二套 NR 效果或多層輪次。未連接時為相同尺寸與色彩的輸入對照；不會凍結參數。"
       },
       "start_time": {
         "name": "预览起点（秒）",
@@ -390,6 +481,10 @@
       "process_to_end": {
         "name": "处理到视频末尾",
         "tooltip": "自动读取剩余时长；起点 0 为全视频。单帧按钮仍只输出一帧。保留帧数及磁盘容量检查。"
+      },
+      "retain_prepared_cache": {
+        "name": "保留输入准备缓存",
+        "tooltip": "在共享配额内保留小型准备缓存，方便调节 Look 时复用。大区间始终流式处理，不保存整段输入缓存。关闭后成功任务删除小缓存；失败或并发使用者要求保留时仍保留。旧的临时预览在 DLSS 缓存与文件管理中清理。"
       }
     },
     "outputs": {
@@ -479,7 +574,7 @@
       },
       "profile": {
         "name": "NR 效果",
-        "tooltip": "正式输出的效果，可与预览共用。"
+        "tooltip": "連接單一 NR 效果或 1–3 層 NR 多層輪次，可與預覽共用。"
       },
       "start_time": {
         "name": "处理起点（秒）",
@@ -505,6 +600,10 @@
       "process_to_end": {
         "name": "处理到视频末尾",
         "tooltip": "从处理起点输出到输入末尾，忽略手动时长。起点 0、尺寸 100 为完整原尺寸输出。"
+      },
+      "retain_prepared_cache": {
+        "name": "保留输入准备缓存",
+        "tooltip": "在共享配额内保留小型准备缓存，方便调节 Look 时复用。大区间始终流式处理，不保存整段输入缓存。关闭后成功任务删除小缓存；失败或并发使用者要求保留时仍保留。旧的临时预览在 DLSS 缓存与文件管理中清理。"
       }
     },
     "outputs": {
@@ -535,6 +634,37 @@
       },
       "1": {
         "name": "诊断报告"
+      }
+    }
+  },
+  "DLSSExperimentalStorageManager": {
+    "display_name": "DLSS 缓存与文件管理",
+    "description": "查看准备缓存和临时任务。运行节点只刷新列表；在卡片中应用共享空间上限，或永久删除闲置条目。删除临时任务前请先保存需要的 VIDEO 输出。",
+    "inputs": {
+      "cache_gib": {
+        "name": "准备缓存总上限（GiB）",
+        "tooltip": "默认 2 GiB；自动淘汰最久未使用的闲置准备缓存。"
+      },
+      "temporary_gib": {
+        "name": "临时任务总上限（GiB）",
+        "tooltip": "默认 8 GiB；达到上限后阻止新任务，不会自动删除预览视频。"
+      },
+      "job_gib": {
+        "name": "单任务临时上限（GiB）",
+        "tooltip": "默认 2 GiB，包含编码输出；不能大于临时任务总上限。"
+      },
+      "entry_mib": {
+        "name": "单条输入缓存阈值（MiB）",
+        "tooltip": "默认 128 MiB；更大的输入区间自动流式处理，不保存整段原始颜色、运动或中间文件。"
+      },
+      "free_gib": {
+        "name": "磁盘最小剩余空间（GiB）",
+        "tooltip": "默认 2 GiB；渲染过程中持续检查此余量。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "存储报告"
       }
     }
   }

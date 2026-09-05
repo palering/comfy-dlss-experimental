@@ -11,6 +11,11 @@ Audience: public
 - Before any rendered media exists, the cursor is a time selector (24 fps UI stepping fallback). After a render it uses the source frame rate. It does not decode/show an unrendered source image on every seek. A single-frame result remains at its recorded timestamp until another render finishes.
 - Controls are grouped into render actions, four equal-width comparison modes, comparison split, and playback/timeline. Mode buttons expose pressed state; controls have focus outlines. The narrow-card render actions wrap explicitly, not by accidental intrinsic sizing.
 - Prepared color/flow remain cached independently of Look. An encoded adapted-original A is now also cached under `prepared-clips/<key>/original-preview-v1/`, with length and SHA256 checks. It is copied into each Comfy temp job so `/view` still uses approved media roots. Pinned Look A is a separate NR render and is **not** covered by this original-only cache.
+- Preview Session and Process Video default to retaining that prepared entry.
+  Disable **Retain prepared input cache** to remove the exact entry only after a
+  successful task. Failures retain it for retry. Concurrent branches are leased;
+  any retaining or failed consumer prevents deletion. The option never removes
+  source/output videos, DLLs, runtime snapshots, or Proton prefixes.
 - No per-frame source reconstruction, NR history, color conversion, or quality settings were removed to achieve the measured improvement.
 
 ## Where diagnostics live
@@ -31,7 +36,9 @@ Important limits:
 - New records sample resources every second, with the GPU query shared between monitoring and sampling. Older records used two seconds. Short runs may have no samples, sampled peaks may miss real peaks. Only marked, owned Linux relay/Proton/worker processes are attributed. Their summed RSS can double-count shared memory. CPU is accumulated CPU seconds, not an instantaneous CPU percentage.
 - GPU utilization and total memory are **device-wide**. Per-worker VRAM is matched by owned Linux PID against NVIDIA's graphics/compute process report; missing/unsupported values remain unavailable, never fake zero. Windows currently has device GPU metrics but no equivalent owned-process RSS collector.
 - Component SHA256 is the exact version identity; product/FileVersion strings are not parsed yet. A hash is not a human-readable vendor release number.
-- UI history is bounded; disk records/caches currently have no automatic retention/eviction. Interrupted partial cache directories can remain for diagnosis.
+- Disk execution records retain the latest 1,000 entries. Prepared entries use
+  a size-bounded LRU and the per-task retention option. Temporary jobs are quota
+  guarded and explicitly removable in [Storage Manager](STORAGE.en.md).
 - Default worker policy remains isolated. Residency is opt-in. Opening a monitor or enabling the toggle does not start a worker, probe an NR feature, or render a video.
 - `worker_startup` ends at the relay's child-created handshake, not an NR-ready signal. Settings are then written once; the first cold frame call waits for initialization, transfer, warmup and its output. That combined timing is not a measurement of the 120 evaluations alone. The D5V2 interface has no separate initialization/warmup timestamps. Reused tasks instead report `history_reset_first_frame`; they retain the live GPU feature, not merely disk prefixes/caches. Cold `worker_startup` is nested inside resident `worker_acquire`, so do not sum both.
 
@@ -108,7 +115,7 @@ Reproduce against an **idle dedicated test instance** with `scripts/check_previe
 ## What to optimize next, and why concurrency stays off
 
 1. **Measure remaining CPU/transport work.** Per-frame integrity reads, pipe/socket copies, GPU upload/readback, and synchronization are still serial. The new `cache_read_verify` timer separates cache checking; direct GPU timestamps would require worker support. Remove unnecessary copies only with byte-equality and cancellation regressions. Do not drop integrity checks without a replacement trust model.
-2. **Encoding and pipeline overlap.** The original A encode is now reusable. For long renders, explore bounded decode/flow → NR → encode streaming queues and configurable output encoding. Encoder changes require separate quality/color/audio verification; do not silently switch to NVENC or change CRF. The later full-duration update removes the 30-second/2-GiB cutoffs using disk-backed preparation and available-space admission; this does not yet overlap the stages. See [output range versus mechanisms](comfy-video-nodes.en.md#output-range-and-processing-mechanisms).
+2. **Encoding and pipeline overlap.** Small cached ranges reuse the original A encode. Larger ranges now use bounded decode/flow → NR → pipe encoding without raw disk spools; see [storage policy](STORAGE.en.md). Codec/model workspaces remain additional memory. Further encoder changes need quality/color/audio verification; this update does not switch to NVENC or change CRF.
 3. **Short-preview fixed costs.** Compatible residency now avoids startup/model setup using the bounded reset-capable D5V2 stream described above. NR Look changes still need a new instance because the selected worker cannot update its initial controls. Removing that cost needs a verified reconfigure/session protocol or another worker adapter, not merely keeping Python alive.
 4. **Segment concurrency: experimental future work, not enabled.** Existing `_GPU_LOCK` and per-prefix lock enforce one NR job at a time. Multiple workers need separate owned Proton prefixes/sessions, bounded admission, and measured per-resolution peak VRAM/RAM plus safety reserve for Comfy and other apps. A momentary low utilization or free-VRAM sample alone is not safe admission logic.
 5. **Segment quality.** Splitting inside a shot discards history. Each segment needs real preceding frames, independent warmup, overlap discard, ordered frame/PTS/audio assembly, and comparison against continuous rendering. No guarantee that a fixed overlap reproduces long-lived NR history. Prefer verified scene cuts first. Only enable 2-worker trials if they improve end-to-end time without memory pressure or visible joins; otherwise fall back to 1. No dynamic chunking or multi-worker speedup is claimed by this release.
