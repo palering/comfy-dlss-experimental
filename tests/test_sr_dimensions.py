@@ -10,7 +10,7 @@ class SRDimensionTests(unittest.TestCase):
         from comfy_dlss_experimental.sr_dimensions import SIZE_MODES
         root=Path(__file__).resolve().parents[1]
         for locale in ('en','zh','zh-TW'):
-            values=json.loads((root/'locales'/locale/'nodeDefs.json').read_text())
+            values=json.loads((root/'locales'/locale/'nodeDefs.json').read_text(encoding="utf-8"))
             options=values['DLSSExperimentalStreamlineStage']['inputs']['output_size_mode']['options']
             self.assertEqual(set(options),{value.replace('.','_') for value in SIZE_MODES})
     def test_generated_native_limits_match(self):

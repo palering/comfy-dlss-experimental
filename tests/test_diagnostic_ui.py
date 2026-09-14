@@ -37,7 +37,7 @@ class DiagnosticUITests(unittest.TestCase):
         # Catch a new raw dict-list diagnostic before it enters Comfy Jobs.
         count = 0
         for path in (Path(__file__).resolve().parents[1] / "comfy_dlss_experimental/nodes").glob("*.py"):
-            for item in ast.walk(ast.parse(path.read_text())):
+            for item in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
                 if not isinstance(item, ast.Call):
                     continue
                 for kw in item.keywords:
