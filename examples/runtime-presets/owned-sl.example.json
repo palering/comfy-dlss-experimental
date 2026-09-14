@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "owned-sl-reconstruction-experimental",
+  "backend": "owned_sl",
+  "components": {
+    "worker": "../components/owned-sl/comfy-dlss-sl-worker.exe",
+    "sl_interposer": "../components/owned-sl/sl.interposer.dll",
+    "sl_common": "../components/owned-sl/sl.common.dll",
+    "nvlowlatencyvk": "../components/owned-sl/NvLowLatencyVk.dll",
+    "sl_dlss": "../components/owned-sl/sl.dlss.dll",
+    "nvngx_dlss": "../components/owned-sl/nvngx_dlss.dll",
+    "sl_dlssd": "../components/owned-sl/sl.dlss_d.dll",
+    "nvngx_dlssd": "../components/owned-sl/nvngx_dlssd.dll"
+  },
+  "compatibility": {
+    "project_id": "f11d0944-2512-4ea1-a5a7-f7ee4987f3f5",
+    "notes": "Explicit CXR1 Worker plus a compatible, user-supplied Streamline SR/RR DLL set. This project UUID is not NVIDIA certification. File readiness is not device/input/quality acceptance. No FG/MFG or NR caller shim. Keep worker residency disabled."
+  }
+}

@@ -9,6 +9,65 @@ see [direct NR](../docs/direct-nr-relay.en.md) and [helper distribution](../docs
 It builds with existing Zig, without a Windows/MSVC host, NGX SDK or ReShade.
 Native optical flow builds separately for each host platform.
 
+Optional refactored paths: [owned NR runtime](../docs/owned-runtime.en.md) uses
+our Worker and thin caller; [SR/DLAA](../docs/super-resolution.en.md) uses the same
+Worker built with the official SDK, without the NR caller. SR source/CPU checks
+do not establish a linked or GPU-tested SDK binary. Existing relay presets are
+not migrated automatically. The sections below retain the legacy/diagnostic context.
+
+## Streamline CXR1 reconstruction Worker and diagnostic
+
+The separate [CXR1 development backend](../docs/streamline-reconstruction.en.md)
+now connects explicit Python camera/SR/RR inputs to this feature engine. Build
+with `build_sl_worker.py`; the resulting `comfy-dlss-sl-worker.exe --serve-sl`
+is not the default NR/CSR1 Worker. Its controlled GPU/transport validation is
+separate from the synthetic probe below. The explicit
+[owned_sl reconstruction nodes](../docs/reconstruction-nodes.en.md) have also
+passed bounded Comfy SaveVideo integration tests.
+
+`sl_sr_engine.*` is a separate C++ feature adapter with explicit numerical camera
+constants and no Comfy/media/transport code. `sl_sr_probe.cpp` supplies only a
+synthetic static checker scene: RGBA16F color, zero RG16F motion and a flat R32F
+device-depth plane. It is not the `owned_sr` implementation or a video node.
+
+Build with an existing Zig and user-supplied official Streamline headers:
+
+```bash
+python3 sidecar/build_sl_sr_probe.py --streamline-include /path/to/streamline/include --native-tests
+```
+
+This cross-build dynamically resolves SL exports, without linking NGX or SL
+import archives or installing an MSVC sysroot. It produces
+`sidecar/build/sl-sr-probe/comfy-dlss-sl-sr-probe.exe` plus a build/hash report.
+Supply matching `sl.interposer.dll`, `sl.common.dll`, `sl.dlss.dll` and
+`nvngx_dlss.dll` and their runtime dependencies separately. No vendor files are
+downloaded or copied by this build script.
+
+The diagnostic accepts absolute runtime and new job directories, then
+`device|frame|sequence` and a nonzero project UUID, optionally followed by
+`sr|dlaa|rr|rr-dlaa` (default `sr`). RR additionally requires `sl.dlss_d.dll` and
+`nvngx_dlssd.dll`; its fixture supplies explicit synthetic material buffers.
+Run stages in that order,
+with an external timeout and isolated process ownership. It writes JSONL events
+and FP16 output files. It uses a hidden swapchain and an actual hooked Present
+per frame for SL lifecycle bookkeeping; processed output is read from a separate
+offscreen texture. OTA flags are not enabled. GPU waits and the overall probe
+have deadlines; failure does not imply a safe automatic retry.
+
+The bounded 640×360 -> 960×540 synthetic test has passed device/Present, one-frame
+and eight-frame inference on Linux/Proton with supplied SL 2.14.1 binaries. All
+channels were finite; resetting frame five reproduced the first four outputs
+exactly. This is not natural-video quality, long-run, native Windows, full ABI,
+CSR1 transport or Comfy SR acceptance. CSR1 currently lacks this adapter's camera
+metadata; the adapter does not silently invent it for a video. SL SR's public
+interface also does not expose the NGX frame-time parameter. Existing backend
+selection and default Worker capabilities are unchanged.
+
+The separate [project-owned caller shim](../docs/caller-shim.en.md) is a
+development component with typed forwarding tests. It is not used by the active
+video path and must not replace the external Worker. Its optional build uses
+official SDK headers; ordinary relay installation still does not need them.
+
 The remaining sections describe retained loader/GPU-copy/ABI diagnostics,
 not installation prerequisites or the active NR input contract.
 The diagnostic sidecar is a separate Windows process that owns D3D12 and NGX. The Python

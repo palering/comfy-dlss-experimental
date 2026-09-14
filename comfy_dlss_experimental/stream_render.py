@@ -11,16 +11,17 @@ from .direct_nr import DirectNRClient
 from .execution_log import current_trace, phase
 from .flow_provider import FlowProvider
 from .native_relay import NativeRelay
-from .nr_effect import expand_effect
+from .processing_plan import resolve_nr_parts
 from .resident_worker import STREAM_CAPACITY, compatibility_key, resident_worker
 from .storage_manager import check_job
 from .stream_media import StreamEncoder, prepared_frames
 from .temporal_guides import GuideSettings
+from .owned_adapter import OwnedMediaClient, launch_owned, media_contract, owned_settings
 
 
 def render_stream(manifest, runtime, effect, root, job, warmup, cancelled, progress):
     from .video_pipeline import _GPU_LOCK, cancellable_lock, check_cancel, profile_settings, relay_environment, snapshot_runtime
-    profiles, plan = expand_effect(effect)
+    profiles, plan = resolve_nr_parts(effect, runtime)
     values = dict(manifest["guide_settings"])
     if values.get("flow"):
         values["flow"] = FlowProvider(**values["flow"])
@@ -28,6 +29,12 @@ def render_stream(manifest, runtime, effect, root, job, warmup, cancelled, progr
     job.mkdir(parents=True, exist_ok=False)
     trace = current_trace()
     count = len(manifest["frames"])
+    owned = runtime.get("backend") == "owned_nr"
+    client_factory = OwnedMediaClient if owned else DirectNRClient
+    # Preflight every stage before launching any Worker in the stack.
+    if owned:
+        for profile in profiles:
+            owned_settings(profile_settings(profile, manifest["width"], manifest["height"], count, warmup))
     persistent = runtime.get("worker_policy") == "persistent" and len(profiles) == 1 and count < STREAM_CAPACITY
     sessions, clients, reports, leases = [], [], [], []
     hashes = [hashlib.sha256() for _ in profiles]
@@ -56,7 +63,8 @@ def render_stream(manifest, runtime, effect, root, job, warmup, cancelled, progr
                 settings = profile_settings(profile, manifest["width"], manifest["height"], count, warmup)
                 bypass = not profile.get("nr_enabled", True) or profile.get("mix", 1) == 0
                 report = {"settings": asdict(settings), "profile": profile, "bypassed": bypass, "passed": False,
-                          "pass_index": index + 1, "look_inherited": plan["inherited"][index]}
+                          "pass_index": index + 1, "look_inherited": plan["inherited"][index],
+                          "execution_contract": media_contract(runtime)}
                 reports.append(report)
                 sessions.append(None)
                 clients.append(None)
@@ -73,25 +81,30 @@ def render_stream(manifest, runtime, effect, root, job, warmup, cancelled, progr
 
                 def launch():
                     with phase("worker_startup"):
+                        if owned:
+                            return launch_owned(runtime, relay, worker, job / f"worker-{index + 1}",
+                                root, proton, environment, f"-stream-{index + 1}" if len(profiles) > 1 else "")
                         return NativeRelay(relay, worker, job / f"worker-{index + 1}", proton=proton,
                             compatdata=root / "prefixes" / ("direct-" + runtime_key[:24] + (f"-stream-{index + 1}" if len(profiles) > 1 else "")),
                             environment=environment, timeout=1020, worker_timeout=3600)
 
                 if persistent:
                     with phase("worker_acquire"):
-                        lease = resident_worker.acquire(key=compatibility_key(runtime, settings, environment),
+                        lease = resident_worker.acquire(key=compatibility_key(runtime, settings, environment, owner_root=root),
                             runtime=runtime, settings=settings, factory=launch,
-                            idle_seconds=runtime.get("idle_timeout_seconds", 300), trace=trace)
+                            idle_seconds=runtime.get("idle_timeout_seconds", 300), trace=trace,
+                            client_factory=client_factory)
                     sessions[index], clients[index], leases[index] = lease.session, lease.client, lease
                 else:
                     session = launch()
                     sessions[index] = session
-                    clients[index] = DirectNRClient(session, settings)
+                    clients[index] = client_factory(session, settings)
                 if trace:
                     trace.markers = [s.run_marker for s in sessions if s]
                     trace.record["worker_instances"] = len(trace.markers)
                     trace.record["effective_worker_policy"] = "persistent" if persistent else "isolated"
                     trace.record["worker_reused"] = bool(leases[index] and leases[index].reused)
+                    trace.record["execution_contract"] = media_contract(runtime)
                     trace.set_worker_state("running")
             with StreamEncoder(job / "output.mp4", manifest, cancelled) as encoder:
                 frame_iterator = prepared_frames(manifest, guides, cancelled)

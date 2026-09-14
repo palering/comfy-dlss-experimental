@@ -14,6 +14,8 @@ Windows sidecar 是 D3D12/NGX 周围的狭窄原生边界，以 Zig 编译为 Wi
 - 分配或拷贝前验证尺寸、pitch、格式、偏移、计数及整数转换。
 - 开启警告并保持无警告；无专有 DLL 的代码路径应提供 sanitizer 构建。
 
+- Caller 转发使用独立声明的 ABI／版本，区分不同 Init 参数布局，保留 shim 内的真实返回地址，并检查优化后的导出代码。不能用薄 DLL 替换旧视频可执行程序。
+
 ## 所有权与生命周期
 
 - HMODULE、COM 接口、Win32 handle、文件、内存、D3D12 资源、fence、NGX feature 均使用 RAII。

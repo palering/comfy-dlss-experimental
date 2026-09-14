@@ -5,6 +5,10 @@ from pathlib import Path
 
 
 def data_root() -> Path:
+    from .execution_context import current_execution_context
+    context = current_execution_context()
+    if context is not None:
+        return context.data_root
     override = os.environ.get("COMFY_DLSS_HOME")
     if override:
         return Path(override).expanduser()

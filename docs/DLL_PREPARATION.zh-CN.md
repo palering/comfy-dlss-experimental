@@ -110,8 +110,8 @@ RTX40 发布说明将模型称为 Ada 社区补丁版，并提到 Uncle Burrito 
 | --- | --- | --- |
 | 驱动的 `nvngx.dll` / 重命名的 `_nvngx.dll` | NVIDIA NGX 核心 bootstrap 库；Zonnery 列为其路线的依赖 | 不作为我们的三个应用组件之一；不能拿它替代视频 Worker。仍需正确安装驱动 |
 | `caller/nvngx.dll` | Zonnery 的调用者验证薄转发 DLL，由播放器加载 | 不需要额外准备；它不能充当 D5V2 视频可执行程序 |
-| `nvngx_dlss.dll` | DLSS Super Resolution 运行库，参考项目的 DX11/旧 carrier 路线可能使用 | 当前 NR 路线不需要；也不会因此获得 SR |
-| `nvngx_dlssg.dll`、`sl.*.dll` | Frame Generation / Streamline 相关组件 | 当前不需要，SR/FG/Streamline 未接入 |
+| `nvngx_dlss.dll` | DLSS Super Resolution 运行库 | NR 不需要；独立实验性 [SDK SR 路径](super-resolution.zh-CN.md)需要它和 SDK Worker，单独复制该 DLL 不会启用 SR |
+| `nvngx_dlssg.dll`、`sl.*.dll` | Frame Generation / Streamline 相关组件 | 当前不需要，FG/Streamline 未接入；[独立 SDK SR 路径](super-resolution.zh-CN.md)使用 `nvngx_dlss.dll` 和 SDK Worker |
 
 [Zonnery 的依赖表](https://github.com/Zonnery/dlss5-nr-player)
 描述的是它自己的播放器，不是可直接照搬到这里的采购清单。尤其不能把该表关于

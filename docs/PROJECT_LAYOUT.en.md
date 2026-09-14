@@ -18,6 +18,10 @@ ComfyUI/
         ├── comfy_dlss_experimental/
         │   ├── nodes/                  # Comfy V3 node schemas and execution entrypoints
         │   ├── setup_check.py          # read-only Setup Helper diagnostics
+        │   ├── media_pipeline.py       # lazy source/guide assembly and NR stage lowering
+        │   ├── processing_plan.py      # compatible Look/Stack compilation
+        │   ├── backend_contracts.py    # implemented backend input/output capabilities
+        │   ├── guide_providers.py      # selected estimator lifecycle boundary
         │   ├── video_pipeline.py       # preparation, Worker orchestration and export
         │   ├── direct_nr.py            # D5V2 Worker protocol client
         │   ├── presets.py              # preset validation and component hashes
@@ -29,6 +33,7 @@ ComfyUI/
         ├── examples/runtime-presets/    # templates only; no proprietary DLLs
         ├── sidecar/
         │   ├── src/                     # source for our relay/NVOF helpers
+        │   │   └── nr_caller.*           # separate development shim, not a video Worker
         │   ├── vendor/nvof/             # NVIDIA header provenance and retained notices
         │   ├── build/                    # ignored local build output
         │   └── bin/<target>/<version>/  # installed helper Release, if available

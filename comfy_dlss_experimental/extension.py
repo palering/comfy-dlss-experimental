@@ -3,6 +3,20 @@ from __future__ import annotations
 from comfy_api.latest import ComfyExtension, io
 
 from .nodes import (
+    DLSSExperimentalCameraInput,
+    DLSSExperimentalStreamlineStage,
+    DLSSExperimentalReconstructionInput,
+    DLSSExperimentalReconstructionRender,
+    DLSSExperimentalExternalGuide,
+    DLSSExperimentalGuideSelector,
+    DLSSExperimentalSRSettings,
+    DLSSExperimentalSRPlan,
+    DLSSExperimentalSRStage,
+    DLSSExperimentalFlowSelector,
+    DLSSExperimentalInputAssembler,
+    DLSSExperimentalNRStage,
+    DLSSExperimentalPipelinePreview,
+    DLSSExperimentalPipelineRender,
     DLSSExperimentalDISFlow,
     DLSSExperimentalNVIDIAFlow,
     DLSSExperimentalCarrierTest,
@@ -29,6 +43,20 @@ register_preview_routes()
 class DLSSExperimentalExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
+            DLSSExperimentalCameraInput,
+            DLSSExperimentalStreamlineStage,
+            DLSSExperimentalReconstructionInput,
+            DLSSExperimentalReconstructionRender,
+            DLSSExperimentalExternalGuide,
+            DLSSExperimentalGuideSelector,
+            DLSSExperimentalSRSettings,
+            DLSSExperimentalSRPlan,
+            DLSSExperimentalSRStage,
+            DLSSExperimentalFlowSelector,
+            DLSSExperimentalInputAssembler,
+            DLSSExperimentalNRStage,
+            DLSSExperimentalPipelinePreview,
+            DLSSExperimentalPipelineRender,
             DLSSExperimentalDISFlow,
             DLSSExperimentalNVIDIAFlow,
             DLSSExperimentalRuntimeProbe,

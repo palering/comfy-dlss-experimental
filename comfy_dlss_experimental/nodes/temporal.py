@@ -1,5 +1,6 @@
 import json
 from comfy_api.latest import io
+from ..diagnostic_ui import diagnostic_ui
 from ..video_pipeline import guide_settings
 from ..input_policy import InputColorPolicy
 from ..input_inspection import inspect_video_input
@@ -13,7 +14,8 @@ class DLSSExperimentalTemporalSettings(io.ComfyNode):
             node_id="DLSSExperimentalTemporalSettings", display_name="DLSS Video Guides",
             category="DLSS Experimental/Guides", search_aliases=["motion", "optical flow", "dlss"],
             description="Connect an optical-flow provider (DIS/NVIDIA). Owns analysis resolution, scene-cut resets and consistency diagnostics. Without a provider, retains legacy DIS/zero behavior. Prepares only requested ranges.",
-            inputs=[io.Int.Input("analysis_scale", default=50, min=25, max=100, step=5),
+            inputs=[io.Int.Input("analysis_scale", default=50, min=25, max=100, step=5,
+                                tooltip="Optical-flow analysis width and height as a percentage of the source; not SR output scale. 50 uses one quarter as many analysis pixels, 100 analyzes the full source. DIS Balanced adds its own coarser pyramid level; DIS Quality uses the finest level. Changing this does not rerun geometry."),
                     io.Float.Input("scene_cut_threshold", default=0.35, min=0.01, max=1.0, step=0.01),
                     io.Float.Input("consistency_tolerance", default=2.5, min=0.1, max=20.0, step=0.1, advanced=True,
                                    tooltip="Forward/backward consistency diagnostic threshold, not model strength."),
@@ -43,7 +45,7 @@ class DLSSExperimentalPrepareTemporalSequence(io.ComfyNode):
             node_id="DLSSExperimentalPrepareTemporalSequence", display_name="DLSS Video Input Adapter",
             category="DLSS Experimental/Guides", search_aliases=["prepare video", "temporal sequence"],
             description="Inspect video headers, explain compatibility and explicitly fill missing SDR color metadata. Does not transcode the whole video or run NR. Final decoding checks are deferred to the requested range.",
-            inputs=[io.Video.Input("video"), TemporalSettings.Input("settings"),
+            inputs=[io.Video.Input("video"), TemporalSettings.Input("settings", optional=True),
                     io.Combo.Input("color_policy", options=["strict", "fill_missing"], default="strict", optional=True,
                                    tooltip="Strict requires known tags. Fill missing uses the assumptions below only where tags are absent; known HDR is never overridden."),
                     io.Combo.Input("assumed_transfer", options=["bt709", "iec61966-2-1"], default="bt709", optional=True,
@@ -60,11 +62,12 @@ class DLSSExperimentalPrepareTemporalSequence(io.ComfyNode):
             is_output_node=True, is_experimental=True)
 
     @classmethod
-    def execute(cls, video, settings, color_policy="strict", assumed_transfer="bt709", assumed_range="tv", normalize_to_srgb=False,
+    def execute(cls, video, settings=None, color_policy="strict", assumed_transfer="bt709", assumed_range="tv", normalize_to_srgb=False,
                 ffmpeg_path="", ffprobe_path=""):
         from dataclasses import asdict
         from datetime import datetime, timezone
         from ..node_execution import interrupted
+        settings = settings if settings is not None else {"schema_version": 2, "motion_provider": "dis"}
         guide_settings(settings)
         policy = InputColorPolicy(color_policy, assumed_transfer, assumed_range, normalize_to_srgb)
         policy.validate()
@@ -90,4 +93,4 @@ class DLSSExperimentalPrepareTemporalSequence(io.ComfyNode):
                   "guide_state": "lazy_range_cache", "settings": settings}
         sequence = {"schema_version": 2, "video": video, "public": public, "settings": settings,
                     "color_policy": asdict(policy), "input_report": report, "media_tools_config": tools_config}
-        return io.NodeOutput(sequence, json.dumps(report, ensure_ascii=False, indent=2), ui={"dlss_input_report": [report]})
+        return io.NodeOutput(sequence, json.dumps(report, ensure_ascii=False, indent=2), ui=diagnostic_ui("dlss_input_report", report))

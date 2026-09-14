@@ -7,6 +7,9 @@ build/
 .zig-cache/
 dist/
 sidecar/bin/
+sidecar/build-sdk/
+/build-sdk-worker/
+/sdk-worker-artifact/
 *.egg-info/
 
 # User-supplied or generated runtime data must never be committed.

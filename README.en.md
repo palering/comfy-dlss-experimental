@@ -12,6 +12,22 @@ in-node A/B previews and a separate final-export path.
 > external Worker/model pair. Prebuilt helper Releases are **not available yet**.
 > Linux/Proton has GPU validation; Windows GPU validation is still pending.
 
+The quick start below preserves the legacy `direct_nr` route. The opt-in
+[project-owned `owned_nr` runtime](docs/owned-runtime.en.md) replaces the external
+Worker with our Worker and thin caller; it still needs a user-supplied NR model.
+An [experimental SR/DLAA execution path](docs/super-resolution.en.md) is also
+implemented in source, but needs a separately SDK-linked Worker and numeric
+device-depth input. That CSR1 node path has **not** passed GPU acceptance.
+The separate [Streamline reconstruction nodes](docs/reconstruction-nodes.en.md)
+use `owned_sl`/CXR1 and explicit camera/renderer bundles. SR, DLAA, RR and RR+DLAA
+have passed bounded GPU/file/Comfy SaveVideo tests, including one-frame output.
+This does not make an ordinary MP4 a complete RR input or establish natural-video quality.
+
+The unified [VIDEO-to-Streamline path](docs/streamline-video-input.en.md) also
+connects Input Assembler, explicit camera/depth, Streamline Stage and Pipeline
+Render. SR/DLAA, DIS, one-frame/history and audio ranges have bounded Linux GPU
+and actual Comfy SaveVideo acceptance. Camera estimation itself is external.
+
 [Quick Start](#quick-start) · [Prerequisites](#prerequisites) ·
 [Project layout](#project-layout) · [Build from source](#build-from-source) ·
 [Example workflows](#example-workflows)
@@ -72,6 +88,8 @@ for portable Python, custom data directories and troubleshooting.
 - Adjust NR intensity, style and experimental controls in **NR Look**.
 - Cascade one to three Looks without intermediate video encoding using **NR Pass Stack**.
 - Choose **DIS CPU** or optional **NVIDIA hardware optical flow**.
+- Import [external numerical flow](docs/external-guides.en.md) with source/hash/time checks; attach depth, normals, masks or confidence with explicit consumption status.
+- Configure [experimental SR / DLAA](docs/super-resolution.en.md) separately from NR; SR Input Plan inspects inputs, while SR Stage → Pipeline Render supplies the SDK-backed execution path (GPU acceptance pending).
 - Inspect video metadata; optionally normalize supported SDR input to sRGB.
 - Preflight the selected runtime, component hashes, media/Python dependencies,
   platform bridge and actual optical-flow configuration in **Setup Helper**.
@@ -79,9 +97,16 @@ for portable Python, custom data directories and troubleshooting.
 - Use isolated or lazy-resident Workers, with timing, history and manual release.
 - Export a standard **VIDEO** through ComfyUI's native **Save Video** node.
 
-**Not implemented:** SR/upscaling, FG/frame generation, HDR processing, external
-depth/material/mask inputs, native Linux NR, and comparison-video export.
+**Not implemented:** FG/frame generation, HDR processing, mixed NR/SR stacks, SR A/B preview,
+NR consumption of depth/normals/masks/confidence, material reconstruction,
+native Linux NR, and comparison-video export.
 Experimental controls may have no visible effect on some Worker/model pairs.
+
+**Experimental FG requires foreground focus:** the current Present-capture test
+requires the **Worker window on the GPU host**, not the ComfyUI browser, to stay
+focused. Background FG and a Comfy FG node are not available. NR and the tested
+SR/DLAA/RR reconstruction paths do not require foreground focus. See
+[FG window requirements and pause options](docs/streamline-reconstruction.en.md#fg-window-focus-and-pause-options).
 
 ## Prerequisites
 
@@ -128,7 +153,7 @@ Keep runtime files outside source; `COMFY_DLSS_HOME` can override the data root.
 | `dlss-native-relay.exe` | **Required project helper.** Built from this repository; it is not downloaded from NVIDIA and was not renamed from another DLL. |
 | `dlss-nvof-helper[.exe]` | **Optional project helper.** Required only for NVIDIA optical flow; DIS does not use it. |
 | ReShade `dxgi.dll`, `renodx-dlss5*.addon64` | **Not used** by the active `direct_nr` backend; retained only as research-route inputs. |
-| `nvngx_dlss.dll`, `D3DCompiler_47.dll`, `sl.*.dll`, separate caller shim | **Not used** by the active backend. SR/Streamline/ReShade requirements must not be mixed into this NR setup. |
+| `nvngx_dlss.dll`, `D3DCompiler_47.dll`, `sl.*.dll`, separate caller shim | **Not used by `direct_nr`.** The opt-in `owned_sr` path uses `nvngx_dlss.dll` with an SDK-enabled Worker; `owned_nr` uses our thin caller. Do not mix these feature-specific bindings into the quick-start NR pair. |
 
 The [external-file guide](docs/DLL_PREPARATION.en.md) maps the different
 requirements described by Zonnery's player and DLSS5 Video Converter to our
@@ -188,6 +213,11 @@ both helpers for the selected target. [Development/tests](docs/DEVELOPMENT.en.md
 and [C++ quality rules](docs/sidecar-cpp-quality.en.md) describe validation;
 a successful cross-build is not Windows GPU acceptance.
 
+For the separate experimental SR route, build the same Worker with an existing
+Windows MSVC toolchain and official SDK; the NR Zig build does not link SR.
+[SR build commands and required files](docs/super-resolution.en.md#runtime-files-and-build)
+also explain the manual Windows build workflow and remaining GPU-validation boundary.
+
 ## Example workflows
 
 Download the JSON (use GitHub's **Raw / Download raw file**) and drag it into
@@ -200,6 +230,11 @@ no third-party video-loader pack is required.
 | [Full-video export](example_workflows/dlss_native_process.json) | Full duration at input size through native Save Video. |
 | [NVIDIA flow preview](example_workflows/dlss_nvidia_flow_preview.json) | Swappable native NVIDIA optical-flow provider; requires its helper. |
 | [Two-Look comparison](example_workflows/dlss_compare_looks.json) | Two NR Looks connected to A and B; both share prepared inputs. |
+| [Experimental NR pipeline](example_workflows/dlss_pipeline_preview.json) | Separate input assembly, lazy DIS/NVIDIA selector and serial NR stages; see [pipeline guide](docs/media-pipeline.en.md). |
+| [External motion pipeline](example_workflows/dlss_external_motion_preview.json) | Optional numerical motion-guide import; starts with configured DIS until a real manifest is supplied. |
+| [Experimental SR/DLAA](example_workflows/dlss_sr_experimental.json) | Wiring template requiring a real device-depth manifest and SDK-enabled `owned_sr` Worker; not an immediately runnable or GPU-validated example. |
+| [Streamline reconstruction](example_workflows/dlss_reconstruction.json) | Explicit renderer bundle + `owned_sl`/CXR1 + native SaveVideo. SR/DLAA/RR/RR+DLAA have bounded synthetic GPU/Comfy acceptance; supply your own complete bundle and runtime preset. |
+| [Streamline from VIDEO](example_workflows/dlss_streamline_video.json) | Unified input + explicit camera/depth → Streamline SR/DLAA Stage → Pipeline Render → SaveVideo; provide matching manifests and owned_sl runtime. |
 
 [Example guide](example_workflows/README.en.md) explains wiring, defaults,
 required setup and safe first tests. Source videos and proprietary binaries are
@@ -228,6 +263,7 @@ See [translation coverage and contribution rules](docs/i18n.en.md).
 - [FFmpeg setup and paths](docs/media-tools.en.md)
 - [Input adapter and color](docs/video-input-adapter.en.md)
 - [NVIDIA optical flow](docs/nvidia-optical-flow.en.md)
+- [Experimental SR/DLAA inputs, runtime and build](docs/super-resolution.en.md)
 - [Performance, residency and monitoring](docs/preview-performance.en.md)
 - [Storage limits, streaming and file cleanup](docs/STORAGE.en.md)
 - [Architecture](docs/ARCHITECTURE.en.md) · [runtime roles and thin-shim rule](docs/RUNTIME_ROLES.en.md) · [direct NR protocol](docs/direct-nr-relay.en.md)

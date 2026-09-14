@@ -20,7 +20,8 @@ from .flow_provider import FlowProvider
 from .input_policy import InputColorPolicy
 from .execution_log import measured, phase, current_trace
 from .media_tools import media_tool_identity
-from .nr_effect import expand_effect
+from .processing_plan import resolve_nr_parts
+from .owned_adapter import OwnedMediaClient, launch_owned, media_contract, owned_settings
 
 _GPU_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -150,7 +151,8 @@ def guide_settings(settings: dict) -> GuideSettings:
     result = GuideSettings(settings.get("analysis_scale", 50) / 100,
                            settings.get("scene_cut_threshold", 0.35),
                            settings.get("consistency_tolerance", 2.5),
-                           flow.kind if flow else settings.get("motion_provider", "dis"), flow)
+                           flow.kind if flow else settings.get("motion_provider", "dis"), flow,
+                           settings.get("external_motion"))
     result.validate()
     return result
 
@@ -158,61 +160,29 @@ def guide_settings(settings: dict) -> GuideSettings:
 @measured("input_binding")
 def bind_video_source(video, request: ClipRequest, job: Path, *,
                       color_policy: InputColorPolicy = InputColorPolicy(), cancelled=None) -> tuple[Path, ClipRequest]:
-    """Respect VIDEO trims/crops. Fast-path only a known file-backed Comfy type."""
-    request.validate()
-    from comfy_api.latest import InputImpl
-    if isinstance(video, InputImpl.VideoFromFile):
-        source = video.get_stream_source()
-        if isinstance(source, (str, Path)):
-            source = Path(source).resolve(strict=True)
-            metadata = probe_media(source, color_policy=color_policy, cancelled=cancelled)
-            raw = metadata["video"]
-            # Public dimensions reveal an effective crop. Never bypass it.
-            if tuple(video.get_dimensions()) == (raw["width"], raw["height"]):
-                offset, _trim_duration = video.get_active_trim_window()
-                available = float(video.get_duration())
-                duration = min(request.duration, available - request.start)
-                if duration <= 0:
-                    raise ValueError("Preview starts beyond the VIDEO's active range")
-                # Context must stay inside the upstream trim, not reveal excluded frames.
-                context = min(request.pre_roll, request.start)
-                return source, ClipRequest(offset + request.start, duration, context, request.scale, request.single_frame)
-            if metadata.get("input_report", {}).get("assumptions"):
-                raise ValueError("带上游裁剪且缺少色彩标签的 VIDEO 需要先对原文件适配；不能先按未知色彩物化再补标签。")
-    # Tensor-backed or cropped VIDEO: materialize only the requested view, not
-    # its hidden underlying source. The public API applies all upstream edits.
-    context = min(request.pre_roll, request.start)
-    selected = video.as_trimmed(start_time=request.start - context, duration=request.duration + context)
-    if selected is None:
-        raise ValueError("Selected VIDEO range is empty")
-    from .storage_manager import current_job, MiB
-    storage = current_job()
-    if storage is not None:
-        # Public VIDEO.save_to has no bounded/cancellable byte sink. Restrict this
-        # fallback; file-backed videos use the streamed path without this limit.
-        width, height = video.get_dimensions()
-        selected_frames = selected.get_frame_count()
-        if type(selected_frames) is not int or selected_frames <= 0:
-            raise ValueError("Cannot bound VIDEO materialization; save and reload the upstream video first")
-        if width * height * 8 * selected_frames > storage["settings"]["entry_mib"] * MiB:
-            raise ValueError("Large cropped/tensor VIDEO must first be saved and loaded as a file-backed VIDEO for bounded streaming. The public save_to fallback cannot enforce a disk quota.")
-    destination = job / "selected-input.mp4"
-    selected.save_to(str(destination), crf=0, preset="ultrafast")
-    return destination, ClipRequest(context, request.duration, context, request.scale, request.single_frame)
+    """Compatibility entry: neutral sources bind directly; old VIDEO stays adapted."""
+    from .video_source import VideoSource
+    if isinstance(video, VideoSource):
+        return video.bind(request, job, color_policy=color_policy, cancelled=cancelled or (lambda: False))
+    from .comfy_adapter import bind_comfy_video
+    return bind_comfy_video(video, request, job, color_policy=color_policy, cancelled=cancelled, probe=probe_media)
 
 
 @measured("runtime_snapshot")
 def snapshot_runtime(runtime: dict, root: Path) -> tuple[Path, Path]:
-    if not runtime.get("ready") or runtime.get("backend") != "direct_nr":
-        raise ValueError("Select a ready direct_nr runtime preset")
-    if runtime.get("worker_policy") == "persistent":
+    if not runtime.get("ready") or runtime.get("backend") not in {"direct_nr", "owned_nr"}:
+        raise ValueError("Select a ready direct_nr or owned_nr runtime preset")
+    owned = runtime["backend"] == "owned_nr"
+    if not owned and runtime.get("worker_policy") == "persistent":
         from .resident_worker import persistent_supported
         if not persistent_supported(runtime.get("component_hashes", {})):
             raise ValueError("Persistent reset compatibility is not verified for this worker/model pair")
     targets = {"relay": "dlss-native-relay.exe", "worker": "nvngx.dll", "nvngx_dlssnr": "nvngx_dlssnr.dll"}
+    if owned:
+        targets = {"caller": "caller/nvngx.dll", "worker": "comfy-dlss-worker.exe", "nvngx_dlssnr": "nvngx_dlssnr.dll"}
     components, hashes = runtime["components"], runtime["component_hashes"]
     if set(components) != set(targets):
-        raise ValueError("Direct runtime must contain relay, worker, nvngx_dlssnr")
+        raise ValueError(f"{runtime['backend']} runtime requires exactly {', '.join(targets)}")
     # Reject stale Comfy runtime descriptors and copy a real snapshot, not
     # hardlinks which would change under an in-place DLL replacement.
     for role in targets:
@@ -226,6 +196,7 @@ def snapshot_runtime(runtime: dict, root: Path) -> tuple[Path, Path]:
             temporary.mkdir(parents=True)
             for role, filename in targets.items():
                 target = temporary / filename
+                target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(components[role], target)
                 if file_hash(target) != hashes[role]:
                     raise ValueError(f"Runtime {role} changed while copying")
@@ -234,7 +205,7 @@ def snapshot_runtime(runtime: dict, root: Path) -> tuple[Path, Path]:
             for role, filename in targets.items():
                 if file_hash(destination / filename) != hashes[role]:
                     raise ValueError("Runtime snapshot is corrupt; choose a fresh data directory")
-    return destination / targets["relay"], destination / targets["worker"]
+    return destination / targets["caller" if owned else "relay"], destination / targets["worker"]
 
 
 @measured("input_preparation")
@@ -242,6 +213,13 @@ def prepared_cache(source: Path, request: ClipRequest, guides: GuideSettings, ro
                    color_policy: InputColorPolicy = InputColorPolicy(), scratch_path: Path | None = None,
                    lease: bool = False, retain: bool = True) -> tuple[Path, dict, bool]:
     backend = None
+    if guides.motion_provider == "external":
+        from .external_guides import reopen_external_guide
+        # Even a cache hit must reject a changed manifest. The cached numerical
+        # planes are a content-addressed snapshot; source files are not re-read.
+        external = reopen_external_guide(guides.external_motion)
+        external.validate_nr_motion()
+        backend = external.report()
     if guides.motion_provider == "nvidia":
         from .nvidia_flow import probe_nvidia
         backend = probe_nvidia(guides.flow.device if guides.flow else 0, cancelled=cancelled)
@@ -253,6 +231,10 @@ def prepared_cache(source: Path, request: ClipRequest, guides: GuideSettings, ro
     from .storage_manager import settings as storage_settings, make_cache_room, MiB
     policy = storage_settings(root)
     meta = probe_media(source, cancelled=cancelled, color_policy=color_policy)
+    if guides.motion_provider == "external" and (
+            external.source_sha256 != identity["sha256"] or
+            (external.source_width, external.source_height) != (meta["video"]["width"], meta["video"]["height"])):
+        raise ValueError("External guide source hash/dimensions differ from the VIDEO being prepared")
     width, height = (int(meta["video"][k] * request.scale) // 2 * 2 for k in ("width", "height"))
     from .storage_budget import frame_budget
     from fractions import Fraction
@@ -337,9 +319,13 @@ def _render_variant_frames(prepared: Path, manifest: dict, runtime: dict, profil
                            include_history: bool, verify_original: bool) -> tuple[Path, dict]:
     job.mkdir(parents=True, exist_ok=False)
     settings = profile_settings(profile, manifest["width"], manifest["height"], len(manifest["frames"]), warmup)
+    owned = runtime.get("backend") == "owned_nr"
+    if owned:
+        owned_settings(settings)  # Validate before snapshot, process launch or GPU use.
+    client_factory = OwnedMediaClient if owned else DirectNRClient
     bypass = not profile.get("nr_enabled", True) or profile.get("mix", 1.0) == 0
     report = {"settings": asdict(settings), "profile": profile, "bypassed": bypass, "passed": False,
-              "color_pipeline": manifest.get("color_pipeline")}
+              "color_pipeline": manifest.get("color_pipeline"), "execution_contract": media_contract(runtime)}
     plane = settings.plane_bytes
     from .storage_budget import require_disk
     output_count = len(manifest["frames"]) if include_history else manifest["visible_count"]
@@ -383,21 +369,26 @@ def _render_variant_frames(prepared: Path, manifest: dict, runtime: dict, profil
                     trace.set_worker_state("starting")
                 def launch():
                     with phase("worker_startup"):
+                        if owned:
+                            return launch_owned(runtime, relay, worker, job / "worker", root, proton, environment)
                         return NativeRelay(relay, worker, job / "worker", proton=proton,
                             compatdata=root / "prefixes" / ("direct-" + runtime["runtime_key"][:24]),
                             environment=environment, timeout=1020, worker_timeout=3600)
                 if persistent:
                     with phase("worker_acquire"):
-                        lease = resident_worker.acquire(key=compatibility_key(runtime, settings, environment),
+                        lease = resident_worker.acquire(key=compatibility_key(runtime, settings, environment, owner_root=root),
                             runtime=runtime, settings=settings, factory=launch,
-                            idle_seconds=runtime.get("idle_timeout_seconds", 300), trace=trace)
+                            idle_seconds=runtime.get("idle_timeout_seconds", 300), trace=trace,
+                            client_factory=client_factory)
                     session, client = lease.session, lease.client
                 else:
                     session = launch()
-                    client = DirectNRClient(session, settings)
+                    client = client_factory(session, settings)
                     if trace:
                         trace.record["worker_reused"] = False
                 if trace:
+                    trace.marker = session.run_marker
+                    trace.record["execution_contract"] = media_contract(runtime)
                     trace.set_worker_state("running")
                 def watch_cancel():
                     while not stop.wait(0.1):
@@ -484,7 +475,7 @@ def _render_variant_frames(prepared: Path, manifest: dict, runtime: dict, profil
                     "frame_exchange_seconds": sum(frame_seconds),
                     "steady_frame_median_seconds": ordered[len(ordered) // 2] if ordered else None,
                     "steady_frame_p95_seconds": ordered[min(len(ordered) - 1, int(len(ordered) * .95))] if ordered else None,
-                    "note": "Host wall time: includes NR, upload/download, relay/pipe transport; not GPU kernel time."}
+                    "note": "Host wall time: includes NR, upload/download and transport/conversion; not GPU kernel time."}
             (job / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     if raw.stat().st_size != plane * output_count:
         raise ValueError("NR pass output has an unexpected RGBA frame count")
@@ -496,7 +487,10 @@ def _render_variant_frames(prepared: Path, manifest: dict, runtime: dict, profil
 def render_effect(prepared: Path, manifest: dict, runtime: dict, effect: dict, root: Path, job: Path,
                   warmup: int, cancelled, progress) -> tuple[Path, dict]:
     """Run one or more NR passes without lossy intermediate video encoding."""
-    profiles, plan = expand_effect(effect)
+    profiles, plan = resolve_nr_parts(effect, runtime)
+    if runtime.get("backend") == "owned_nr":
+        for profile in profiles:
+            owned_settings(profile_settings(profile, manifest["width"], manifest["height"], len(manifest["frames"]), warmup))
     previous = prepared / "color.rgba"
     reports = []
     total_frames = len(manifest["frames"]) * len(profiles)

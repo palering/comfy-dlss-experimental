@@ -17,6 +17,10 @@ ComfyUI/
         ├── comfy_dlss_experimental/
         │   ├── nodes/                  # Comfy V3 节点定义与执行入口
         │   ├── setup_check.py          # Setup Helper 的只读诊断逻辑
+        │   ├── media_pipeline.py       # 惰性素材/引导组装与 NR 阶段转换
+        │   ├── processing_plan.py      # 兼容 Look/Stack 的计划编译
+        │   ├── backend_contracts.py    # 已实现后端的输入输出能力
+        │   ├── guide_providers.py      # 所选估计器的生命周期边界
         │   ├── video_pipeline.py       # 输入准备、Worker 编排及导出
         │   ├── direct_nr.py            # D5V2 Worker 协议客户端
         │   ├── presets.py              # 预设校验与组件哈希
@@ -28,6 +32,7 @@ ComfyUI/
         ├── examples/runtime-presets/    # 仅模板，不含专有 DLL
         ├── sidecar/
         │   ├── src/                     # 本项目 relay/NVOF helper 源码
+        │   │   └── nr_caller.*           # 独立开发 shim，不是视频 Worker
         │   ├── vendor/nvof/             # NVIDIA 头文件来源及原声明
         │   ├── build/                    # Git 忽略的本地构建结果
         │   └── bin/<target>/<version>/  # 安装的本项目 helper Release（若有）

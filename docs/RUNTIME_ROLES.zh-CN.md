@@ -26,7 +26,7 @@ Video Converter Worker 同时以 `nvngx.dll` 命名，很可能让完整宿主�
 第三种同名文件是 NVIDIA 驱动的 **NGX bootstrap/core `nvngx.dll`**。它由驱动环境管理，
 不是上述视频 Worker，也不是项目 caller shim，不能复制覆盖任意一方。
 
-## 当前实现
+## 保留的旧实现（direct_nr）
 
 ```text
 ComfyUI Python
@@ -35,10 +35,14 @@ ComfyUI Python
   → nvngx_dlssnr.dll                  与 Worker 匹配的 NR 运行库
 ```
 
-本项目当前没有构建真正的 Feature 18 Worker，也没有额外加载 Zonnery caller shim。
+这条旧后端不使用我们的自有 Worker/caller。
 `dlss-native-relay.exe` 只监管进程和搬运 D5V2 字节，不创建 D3D12 设备或 NGX Feature。
 
-## 接受的重构方向
+## 自有后端（owned_nr）
+
+独立的[自有运行时](owned-runtime.zh-CN.md)已实现下面的实验 NR 路径。
+带相机数据的 Streamline 路径使用下述独立 `owned_sl` 后端与 Worker，
+并不是 NR caller 的替代品。
 
 ```text
 ComfyUI Python
@@ -64,6 +68,24 @@ ComfyUI Python
 
 薄 shim 能降低调用者验证变化对完整 Worker 的影响，但它本身不能让 NR 工作。真正的
 工程量仍在 D3D12/NGX 资源契约、输入补全、Feature 生命周期与跨平台进程边界。
+
+## Streamline 重建后端（owned_sl）
+
+[重建节点](reconstruction-nodes.zh-CN.md)使用显式渲染器数据包与 CXR1，
+不是旧 `owned_sr`／CSR1 或 NR 协议：
+
+```text
+渲染器数据包 → 独立 Python 执行层 → comfy-dlss-sl-worker.exe
+  → sl.interposer.dll + sl.common.dll + NvLowLatencyVk.dll
+  → sl.dlss.dll + nvngx_dlss.dll          SR / DLAA
+  → sl.dlss_d.dll + nvngx_dlssd.dll       光线重建 / RR + DLAA
+  → 编码 VIDEO → ComfyUI SaveVideo
+```
+
+`owned_sl` 预设精确绑定上述八个文件与显式项目 UUID。任务使用哈希校验快照和
+隔离 Worker，不使用 NR 的 `nvngx.dll` caller shim、常驻 Worker、FG 或 MFG。
+SR／DLAA／RR／RR+DLAA 已通过有限合成场景的 Linux/Proton GPU 与 Comfy 执行验收；
+这不等于原生 Windows、普通视频重建或长视频画质验证。
 
 ## 功能 DLL 不是宿主程序
 

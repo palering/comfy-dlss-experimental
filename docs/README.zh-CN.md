@@ -16,6 +16,18 @@ Audience: public
 
 ## 专题
 
+- [输入组装、光流选择与 NR 处理链](media-pipeline.zh-CN.md)。
+- [外部数值运动／深度引导](external-guides.zh-CN.md)（NR 消费所选运动，其他角色为显式附件）。
+- [SR / DLAA 执行与验收限制](super-resolution.zh-CN.md)（可选 SDK Worker，默认构建未启用）。
+- [Streamline 重建节点与渲染数据包格式](reconstruction-nodes.zh-CN.md)（显式 owned_sl/CXR1，与旧 SR 节点分离）。
+- [VIDEO 接入 Streamline 与相机重建输入](streamline-video-input.zh-CN.md)（统一组装器、相机时间线、SR/DLAA 阶段和输出）。
+- [显式相机 Streamline SR/DLAA/RR 后端](streamline-reconstruction.zh-CN.md)（CXR1 开发 API 与原生生命周期）。
+- [独立文件执行与 Comfy 适配层](execution-boundary.zh-CN.md)。
+- [自有 caller shim 开发](caller-shim.zh-CN.md)（不是当前 Worker）。
+- [自有 Worker 验证宿主与 ABI 检查](owned-worker.zh-CN.md)（开发用途，非正式视频输出）。
+- [自有 CNR1 流式接口与会话生命周期](owned-protocol.zh-CN.md)。
+- [实验 owned_nr 安装与限制](owned-runtime.zh-CN.md)（显式选择，旧预设不变）。
+
 - [存储上限、流式处理与文件清理](STORAGE.zh-CN.md)。
 
 - [输入适配](video-input-adapter.zh-CN.md)、[输入重建契约](nr-input-reconstruction.zh-CN.md)、[NVIDIA 光流](nvidia-optical-flow.zh-CN.md)。

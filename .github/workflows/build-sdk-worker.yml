@@ -1,0 +1,154 @@
+name: Build SDK Worker (manual, experimental)
+
+# Opt-in development artifacts only. No release, automatic build or GPU test.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-sdk-worker:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      # Verified upstream commit and archive content used by the SR source.
+      NGX_SDK_COMMIT: a291cc7d2cc642a51566f3dfd5376f635cd1b284
+      NGX_SDK_ARCHIVE_SHA256: 31e82b4ec3242ec6e5b42c73e1f5f5e260338a6ee213bd64444f6c2fa364aa84
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Fetch pinned official SDK build inputs
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sdk = Join-Path $env:RUNNER_TEMP 'comfy-dlss-sdk-inputs'
+          if (Test-Path -LiteralPath $sdk) { throw 'SDK destination must be new' }
+          git clone --no-checkout --filter=blob:none --depth=1 https://github.com/NVIDIA/DLSS.git $sdk
+          if ($LASTEXITCODE -ne 0) { throw 'SDK clone failed' }
+          git -C $sdk fetch --depth=1 origin $env:NGX_SDK_COMMIT
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned SDK fetch failed' }
+          git -C $sdk sparse-checkout set --no-cone '/include/' '/lib/Windows_x86_64/x64/nvsdk_ngx_d.lib'
+          if ($LASTEXITCODE -ne 0) { throw 'SDK sparse checkout configuration failed' }
+          git -C $sdk checkout --detach $env:NGX_SDK_COMMIT
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned SDK checkout failed' }
+          $actualCommit = (git -C $sdk rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $actualCommit -cne $env:NGX_SDK_COMMIT) { throw 'SDK commit mismatch' }
+          $archive = Join-Path $sdk 'lib/Windows_x86_64/x64/nvsdk_ngx_d.lib'
+          $archiveHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($archiveHash -cne $env:NGX_SDK_ARCHIVE_SHA256) { throw 'SDK archive content mismatch' }
+          "COMFY_NGX_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Configure MSVC x64 release CRT build
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake -S sidecar -B build-sdk-worker -G 'Visual Studio 17 2022' -A x64 `
+            "-DCOMFY_NGX_SDK_ROOT=$env:COMFY_NGX_SDK_ROOT" `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
+          if ($LASTEXITCODE -ne 0) { throw 'SDK Worker configure failed' }
+
+      - name: Build Worker, caller and CPU contract tests
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake --build build-sdk-worker --config Release --parallel 2
+          if ($LASTEXITCODE -ne 0) { throw 'SDK Worker build failed' }
+          ctest --test-dir build-sdk-worker --build-config Release --output-on-failure --timeout 30 --no-tests=error
+          if ($LASTEXITCODE -ne 0) { throw 'CPU contract tests failed' }
+
+      - name: Package explicit project-owned files and provenance
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $build = Join-Path $env:GITHUB_WORKSPACE 'build-sdk-worker'
+          $stage = Join-Path $env:RUNNER_TEMP 'comfy-sdk-worker-package'
+          $artifact = Join-Path $env:GITHUB_WORKSPACE 'sdk-worker-artifact'
+          if ((Test-Path -LiteralPath $stage) -or (Test-Path -LiteralPath $artifact)) {
+            throw 'Artifact destinations must be new'
+          }
+          New-Item -ItemType Directory -Path (Join-Path $stage 'caller'), $artifact | Out-Null
+          # Never copy build/dependency directories or glob DLLs. The caller is
+          # this project's thin shim; NVIDIA runtime DLLs are external inputs.
+          $files = @(
+            @{ source = (Join-Path $build 'Release/comfy-dlss-worker.exe'); path = 'comfy-dlss-worker.exe' },
+            @{ source = (Join-Path $build 'caller/Release/nvngx.dll'); path = 'caller/nvngx.dll' },
+            @{ source = (Join-Path $env:GITHUB_WORKSPACE 'LICENSE'); path = 'LICENSE' }
+          )
+          $fileRecords = @()
+          foreach ($file in $files) {
+            $info = Get-Item -LiteralPath $file.source
+            if ($info.PSIsContainer -or $info.Length -eq 0 -or ($info.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+              throw "Expected a nonempty regular file: $($file.path)"
+            }
+            $destination = Join-Path $stage $file.path
+            Copy-Item -LiteralPath $file.source -Destination $destination
+            $fileRecords += [ordered]@{
+              path = $file.path
+              bytes = $info.Length
+              sha256 = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+          }
+          $sourceCommit = (git rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $sourceCommit -cne $env:GITHUB_SHA) { throw 'Project commit mismatch' }
+          $cache = Get-Content -LiteralPath (Join-Path $build 'CMakeCache.txt')
+          $compilerFiles = @(Get-ChildItem -Path (Join-Path $build 'CMakeFiles/*/CMakeCXXCompiler.cmake') -File)
+          if ($compilerFiles.Count -ne 1) { throw 'Expected one CMake compiler identification record' }
+          $compiler = Get-Content -LiteralPath $compilerFiles[0].FullName
+          $provenance = [ordered]@{
+            schema = 'comfy-dlss-sdk-worker-build-v1'
+            experimental = $true
+            source_repository = $env:GITHUB_REPOSITORY
+            source_commit = $sourceCommit
+            sdk_repository = 'https://github.com/NVIDIA/DLSS'
+            sdk_commit = $env:NGX_SDK_COMMIT
+            sdk_archive_sha256 = $env:NGX_SDK_ARCHIVE_SHA256
+            target = 'windows-x86_64'
+            configuration = 'Release'
+            cxx_standard = 20
+            runtime_library = 'MultiThreadedDLL (/MD)'
+            runtime_prerequisites = @('Microsoft Visual C++ v14 x64 runtime compatible with the recorded compiler', 'User-supplied matching NVIDIA feature DLLs; not included')
+            runner = 'windows-2022'
+            runner_image_version = $env:ImageVersion
+            cmake_version = (@(cmake --version)[0])
+            toolset = @($cache | Where-Object { $_ -match '^CMAKE_(GENERATOR_TOOLSET|VS_PLATFORM_TOOLSET|SYSTEM_VERSION):' })
+            compiler = @($compiler | Where-Object { $_ -match '^set\(CMAKE_CXX_(COMPILER_ID|COMPILER_VERSION|SIMULATE_ID|SIMULATE_VERSION) ' })
+            run_id = $env:GITHUB_RUN_ID
+            run_attempt = $env:GITHUB_RUN_ATTEMPT
+            cpu_contract_tests_passed = $true
+            gpu_acceptance_performed = $false
+            runtime_loading_or_model_acceptance_performed = $false
+            helper_installer_compatible = $false
+            files = $fileRecords
+          }
+          $provenancePath = Join-Path $stage 'build-provenance.json'
+          $provenance | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $provenancePath -Encoding utf8
+          $allowed = @('LICENSE', 'build-provenance.json', 'caller/nvngx.dll', 'comfy-dlss-worker.exe')
+          $actual = @(Get-ChildItem -LiteralPath $stage -File -Recurse | ForEach-Object {
+            [IO.Path]::GetRelativePath($stage, $_.FullName).Replace('\', '/')
+          } | Sort-Object)
+          if (@(Compare-Object -ReferenceObject $allowed -DifferenceObject $actual).Count -ne 0) {
+            throw 'Package file allowlist mismatch'
+          }
+          $zipName = 'comfy-dlss-sdk-worker-windows-x86_64.zip'
+          $zipPath = Join-Path $artifact $zipName
+          [IO.Compression.ZipFile]::CreateFromDirectory($stage, $zipPath, [IO.Compression.CompressionLevel]::Optimal, $false)
+          $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$zipHash  $zipName" | Set-Content -LiteralPath (Join-Path $artifact "$zipName.sha256") -Encoding ascii
+          Copy-Item -LiteralPath $provenancePath -Destination (Join-Path $artifact 'build-provenance.json')
+          "Experimental SDK Worker built and CPU-tested. No GPU/model acceptance or release publication was performed." |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - name: Upload development bundle only
+        uses: actions/upload-artifact@v4
+        with:
+          name: comfy-dlss-sdk-worker-windows-x86_64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            sdk-worker-artifact/comfy-dlss-sdk-worker-windows-x86_64.zip
+            sdk-worker-artifact/comfy-dlss-sdk-worker-windows-x86_64.zip.sha256
+            sdk-worker-artifact/build-provenance.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

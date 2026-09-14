@@ -11,6 +11,7 @@ import copy
 from dataclasses import asdict, replace
 import hashlib
 import json
+from pathlib import Path
 import threading
 import time
 import uuid
@@ -29,10 +30,11 @@ def persistent_supported(hashes):
     return (hashes.get("worker"), hashes.get("nvngx_dlssnr")) == VERIFIED_PAIR
 
 
-def compatibility_key(runtime, settings, environment):
+def compatibility_key(runtime, settings, environment, *, owner_root=None):
     header = asdict(settings)
     header.pop("frame_count")
     return hashlib.sha256(json.dumps({"runtime": runtime["runtime_key"], "header": header,
+        "owner_root": str(Path(owner_root).resolve()) if owner_root is not None else None,
         "display": {key: environment.get(key) for key in ("DISPLAY", "XAUTHORITY", "WINE_GRAPHICS_DRIVER")}},
         sort_keys=True).encode()).hexdigest()
 
@@ -61,7 +63,7 @@ class ResidentWorker:
         self._stop = threading.Event()
         self._wake = threading.Event()
 
-    def acquire(self, *, key, runtime, settings, factory, idle_seconds, trace=None):
+    def acquire(self, *, key, runtime, settings, factory, idle_seconds, trace=None, client_factory=DirectNRClient):
         if type(idle_seconds) is not int or not 30 <= idle_seconds <= 900:
             raise ValueError("Resident idle timeout must be 30..900 seconds")
         if settings.frame_count >= STREAM_CAPACITY:
@@ -86,7 +88,7 @@ class ResidentWorker:
                     self._drop(entry, "incompatible_or_expired")
                 session = factory()
                 try:
-                    client = DirectNRClient(session, replace(settings, frame_count=STREAM_CAPACITY))
+                    client = client_factory(session, replace(settings, frame_count=STREAM_CAPACITY))
                 except BaseException:
                     session.close()
                     raise
@@ -123,6 +125,15 @@ class ResidentWorker:
                          and entry["client"].index - lease.start_index == lease.requested_frames
                          and not entry["cancel"].is_set() and not (trace and trace.release_requested.is_set()))
                 retain = valid and not entry["retire"] and not self._stop.is_set()
+            if retain and hasattr(entry["client"], "end_task"):
+                try:
+                    entry["client"].end_task()
+                except BaseException:
+                    self._drop(entry, "end_task_failed")
+                    raise
+            with self._lock:
+                # A manual release can arrive while END is in flight.
+                retain = retain and not entry["retire"] and not self._stop.is_set()
                 if retain:
                     entry.update(state="idle", trace=None, execution_id=None,
                                  idle_deadline=self._clock() + entry["idle_seconds"])
@@ -193,6 +204,7 @@ class ResidentWorker:
 
     def _public(self, entry):
         return {"worker_id": entry["worker_id"], "state": entry["state"], "created_at": entry["created_at"],
+            "protocol": getattr(entry["client"], "protocol", "D5V2"),
             "execution_id": entry.get("execution_id"), "runtime": copy.deepcopy(entry["runtime"]),
             "settings": entry["settings"], "leases": entry["leases"], "stream_frames": entry["client"].index,
             "idle_seconds": entry["idle_seconds"], "idle_remaining_seconds":

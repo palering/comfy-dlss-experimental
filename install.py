@@ -57,10 +57,13 @@ def install_archive(archive, expected_sha256, *, target=None, install_root=None)
     if archive.stat().st_size > MAX_ARCHIVE or sha256(archive) != expected_sha256.lower():
         raise ValueError("Helper archive SHA-256/size verification failed")
     root = Path(install_root) if install_root is not None else REPO / "sidecar" / "bin"
-    names = set(helper_names(target).values())
-    allowed = names | {"manifest.json", "THIRD_PARTY_NOTICES.txt"}
     with zipfile.ZipFile(archive) as bundle:
         infos = bundle.infolist()
+        if bundle.getinfo("manifest.json").file_size > 65536:
+            raise ValueError("Manifest too large")
+        manifest = json.loads(bundle.read("manifest.json"))
+        names = set(helper_names(target, include_owned=manifest.get("include_owned", False)).values())
+        allowed = names | {"manifest.json", "THIRD_PARTY_NOTICES.txt"}
         if len(infos) != len(allowed) or {item.filename for item in infos} != allowed:
             raise ValueError("Unexpected or missing archive members; external DLLs are not helper assets")
         if sum(item.file_size for item in infos) > MAX_EXPANDED:
@@ -69,9 +72,6 @@ def install_archive(archive, expected_sha256, *, target=None, install_root=None)
             mode = stat.S_IFMT(item.external_attr >> 16)
             if item.is_dir() or mode not in (0, stat.S_IFREG) or item.flag_bits & 1:
                 raise ValueError("Links, directories and encrypted members are not allowed")
-        if bundle.getinfo("manifest.json").file_size > 65536:
-            raise ValueError("Manifest too large")
-        manifest = json.loads(bundle.read("manifest.json"))
         version = validate_version(manifest.get("version"))
         if manifest.get("schema_version") != 1 or manifest.get("target") != target:
             raise ValueError("Archive target/schema does not match installation target")
@@ -79,11 +79,13 @@ def install_archive(archive, expected_sha256, *, target=None, install_root=None)
             raise ValueError("Incomplete helper manifest")
         destination = root / target / version
         destination.parent.mkdir(parents=True, exist_ok=True)
-        # Extract only allowlisted flat filenames into a private staging folder.
+        # Only exact allowlisted paths; caller/nvngx.dll is our thin library,
+        # never the external same-named executable or a model DLL.
         with tempfile.TemporaryDirectory(prefix=".install-", dir=destination.parent) as temporary:
             staged = Path(temporary) / "payload"
             staged.mkdir()
             for name in allowed:
+                (staged / name).parent.mkdir(parents=True, exist_ok=True)
                 with bundle.open(name) as source, (staged / name).open("xb") as output:
                     while block := source.read(1024 * 1024):
                         output.write(block)

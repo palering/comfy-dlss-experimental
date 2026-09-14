@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "owned-nr-experimental",
+  "backend": "owned_nr",
+  "components": {
+    "worker": "../components/owned-nr/comfy-dlss-worker.exe",
+    "caller": "../components/owned-nr/caller/nvngx.dll",
+    "nvngx_dlssnr": "../components/owned-nr/nvngx_dlssnr.dll"
+  },
+  "compatibility": {
+    "protocol": "CNR1",
+    "status": "experimental: verify your GPU and model combination",
+    "input": "SDR RGBA8 media adapted to FP16 without implicit EOTF",
+    "maximum_width": 1920,
+    "maximum_height": 1080
+  }
+}

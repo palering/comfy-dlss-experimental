@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from comfy_api.latest import io
+from ..diagnostic_ui import diagnostic_ui
 
 from ..node_execution import run_preview
 from .types import NRProfile, PreviewSession, RenderContract, RuntimeConfig, TemporalSequence
@@ -76,7 +77,7 @@ class DLSSExperimentalPreviewSession(io.ComfyNode):
             workflow_id=str(metadata.get("workflow", {}).get("id", "")),
         )
         return io.NodeOutput(public, json.dumps(public, ensure_ascii=False, indent=2), video_b, video_a,
-                             ui={"dlss_preview": [public]})
+                             ui=diagnostic_ui("dlss_preview", public))
 
 
 class DLSSExperimentalCompareVideo(io.ComfyNode):

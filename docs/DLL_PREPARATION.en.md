@@ -121,7 +121,7 @@ pairs in isolated mode; see [runtime boundaries](dlss5-runtime-research-2026-09.
 | --- | --- | --- |
 | Driver `nvngx.dll` / renamed `_nvngx.dll` | NVIDIA NGX bootstrap core, used by Zonnery's route | Not one of our three application components; cannot substitute for the video executable. A correct driver remains required |
 | `caller/nvngx.dll` | Zonnery's caller-validation forwarding DLL, loaded by its player | No extra copy; it does not implement our executable video protocol |
-| `nvngx_dlss.dll` | Super Resolution runtime used by some DX11/carrier paths | Not required for active NR and does not enable SR here |
+| `nvngx_dlss.dll` | Super Resolution runtime | Not required for NR. Required by the separate experimental [SDK SR path](super-resolution.en.md), together with an SDK-enabled Worker; copying this DLL alone does not enable SR |
 | `nvngx_dlssg.dll`, `sl.*.dll` | FG / Streamline components | Not currently required; these backends are not integrated |
 
 [Zonnery's file table](https://github.com/Zonnery/dlss5-nr-player)

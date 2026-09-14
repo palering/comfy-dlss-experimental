@@ -6,6 +6,9 @@ Audience: public
 
 The ComfyUI process owns schemas, input inspection, media preparation, cache keys,
 job orchestration and process supervision. It never loads vendor graphics DLLs.
+Full-video orchestration now has [host-neutral file entries](execution-boundary.en.md):
+Comfy supplies a VIDEO adapter and execution context; the shared executor returns
+a file path and report. Preview/UI endpoints remain Comfy-specific.
 
 ## Active video path
 
@@ -23,6 +26,11 @@ The relay is a process/pipe bridge, not an NGX implementation. The external
 Worker is a Windows executable despite its filename; substituting an arbitrary
 driver DLL or caller shim does not implement its video protocol.
 See [the direct NR contract](direct-nr-relay.en.md).
+
+Explicit `owned_nr` presets select a second implemented route: the same host
+media layer -> `OwnedMediaClient` -> authenticated CNR1 -> our C++ Worker -> thin
+caller + NR model. It does not use the external relay. Legacy presets are not
+changed automatically; see [owned NR](owned-runtime.en.md).
 
 Python handles video decoding, optional SDR working-transfer normalization,
 optical flow, scene-cut resets, pre-roll, audio, encoding and atomic output.
@@ -42,6 +50,33 @@ Host media tools are separate from Proton. Input Adapter paths travel with the
 sequence into task-local execution, without global PATH mutation. Prepared caches
 include tool identity. PyAV and external command versions are reported separately;
 see [media tools](media-tools.en.md).
+
+## Internal execution boundaries
+
+Both cached and streaming NR paths use `processing_plan.py` to lower existing
+Look/Stack payloads into ordered feature stages. `backend_contracts.py` describes
+the implemented `external_d5v2_nr` wire contract: color and motion in, same-size
+RGBA8 out, one result per submitted frame with its timestamp preserved. This is
+a static implementation description, not a GPU/driver/readiness probe. The ID is
+internal; existing runtime presets and output socket types retain their meanings.
+
+The legacy adapter preserves pass inheritance, disabled/zero-mix stages, guide
+reuse and report fields. Existing profile validation, history handling and Worker
+execution remain responsible for their original checks; this does not implement SR/FG.
+
+The optional new path adds Flow Selector, Input Assembler, NR Stage, Pipeline
+Preview and Pipeline Render. `media_pipeline.py` carries detached recipes with an
+opaque source VIDEO, lowers NR stages to the same executor, and preserves branch
+isolation. No stage materializes the full video or encodes an intermediate file.
+Selected flow and header/contract checks are visible in node cards; actual content,
+time and GPU checks are deferred rather than claimed complete. See
+[pipeline wiring and limits](media-pipeline.en.md).
+
+`guide_providers.py` constructs only the chosen estimator and defines its
+estimate/reset/close boundary. DIS/NVIDIA settings remain serializable without
+creating an estimator. The temporal layer still owns resizing, pixel-unit
+conversion, cut detection and motion packing. Zero-motion mode creates no
+estimator; NVIDIA failures do not silently fall back to DIS.
 
 ## Platform boundary
 
@@ -86,13 +121,18 @@ typed Init/Create/Evaluate/Release calls and is enabled only for a runtime that
 actually enforces caller validation. The current D5V2 backend remains available
 during migration without silently changing old presets. See [runtime roles](RUNTIME_ROLES.en.md).
 
+The project-owned [caller forwarding component](caller-shim.en.md) builds
+separately, has portable ABI-forwarding tests and is used only by explicitly
+selected `owned_nr`. It is not a replacement executable for the legacy Worker.
+
 ## Media contracts and unsupported capabilities
 
 Active D5V2 accepts RGBA8 color and current-to-previous RG16F motion. Optical
 flow estimates image displacement; it is not ground-truth engine motion.
 Depth, normals, materials, arbitrary masks and exposure textures cannot be
-passed through this Worker interface. SR, FG and HDR processing are not
-implemented. Exposing an experimental Look field does not guarantee that
+passed through this Worker interface. Optional [SR source execution](super-resolution.en.md)
+uses its own CSR1 and SDK build; default NR builds do not enable it. FG and HDR
+processing are not implemented. Exposing an experimental Look field does not guarantee that
 every Worker/model pair responds visually.
 
 The retained ReShade carrier, NGX bootstrap experiments, and

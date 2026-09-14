@@ -1,16 +1,174 @@
 {
+  "DLSSExperimentalCameraInput": {
+    "display_name": "DLSS 相机时间线输入",
+    "description": "与确切 VIDEO SHA-256 绑定的标定、估计或渲染器相机时间线。不执行位姿估计或猜测投影；需要完整源 CFR 时间线及重置信息。",
+    "inputs": {
+      "sequence": {
+        "name": "帧序列",
+        "tooltip": "后端的版本 1 dlss_camera_timeline JSON 绝对路径。使用与输入组装器及深度相同的视频输入适配序列。"
+      },
+      "manifest_path": {
+        "name": "清单路径",
+        "tooltip": "后端的版本 1 dlss_camera_timeline JSON 绝对路径。使用与输入组装器及深度相同的视频输入适配序列。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "相机"
+      },
+      "1": {
+        "name": "报告"
+      }
+    }
+  },
+  "DLSSExperimentalStreamlineStage": {
+    "display_name": "DLSS Streamline SR / DLAA 阶段",
+    "description": "输入组装器须连接相机及设备深度，再连接处理链输出与 owned_sl。仅单个 Streamline SR/DLAA 阶段；不从 VIDEO 推测 RR 材质，也不混合 NR/SL。",
+    "inputs": {
+      "pipeline": {
+        "name": "处理链",
+        "tooltip": "输入组装器须连接相机及设备深度，再连接处理链输出与 owned_sl。仅单个 Streamline SR/DLAA 阶段；不从 VIDEO 推测 RR 材质，也不混合 NR/SL。"
+      },
+      "mode": {
+        "name": "模式",
+        "tooltip": "偶数尺寸且保持源宽高比。DLAA 保留源尺寸并忽略目标值。",
+        "options": {
+          "quality": "质量",
+          "balanced": "均衡",
+          "performance": "性能",
+          "ultra_performance": "超高性能",
+          "dlaa": "DLAA"
+        }
+      },
+      "output_size_mode": {
+        "name": "输出分辨率",
+        "tooltip": "倍率在运行时按实际输入视频计算，换视频后自动重算，保持宽高比并取合法偶数尺寸。手动模式才使用宽高；DLAA 保持原尺寸。倍率与质量模式分别选择，最终须通过运行库支持范围检查，不会偷偷缩小或回退。",
+        "options": {"manual": "手动宽高", "1_5x": "1.5 倍", "2x": "2 倍", "3x": "3 倍"}
+      },
+      "output_width": {
+        "name": "输出宽度",
+        "tooltip": "偶数尺寸且保持源宽高比。DLAA 保留源尺寸并忽略目标值。"
+      },
+      "output_height": {
+        "name": "输出高度",
+        "tooltip": "偶数尺寸且保持源宽高比。DLAA 保留源尺寸并忽略目标值。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "处理链"
+      },
+      "1": {
+        "name": "报告"
+      }
+    }
+  },
+  "DLSSExperimentalReconstructionInput": {
+    "display_name": "DLSS 重建数据包输入",
+    "description": "加载显式颜色、运动、设备深度、相机及可选 RR 缓冲；不是普通 MP4 输入，也不估计缺失数据。检查元数据和尺寸，渲染读取时核验像素哈希。",
+    "inputs": {
+      "manifest_path": {
+        "name": "清单路径",
+        "tooltip": "后端机器上的版本 1 渲染数据包 JSON 绝对路径；引用文件必须在清单目录内。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "数据包"
+      },
+      "1": {
+        "name": "报告"
+      }
+    }
+  },
+  "DLSSExperimentalReconstructionRender": {
+    "display_name": "DLSS 重建渲染",
+    "description": "通过 owned_sl CXR1 执行 SR/DLAA/RR，输出标准 VIDEO 供保存视频及其预览使用。无需前台焦点，不含 FG/MFG、NR Look 或 CSR1 回退。SDR 输出裁切并量化，不是 HDR。",
+    "inputs": {
+      "bundle": {
+        "name": "渲染数据包",
+        "tooltip": "连接重建数据包输入；RR 需要完整渲染器及材质缓冲。"
+      },
+      "runtime": {
+        "name": "运行库",
+        "tooltip": "选择 owned_sl，并关闭常驻；CNR1/CSR1 Worker 不可混用。"
+      },
+      "feature": {
+        "name": "功能",
+        "tooltip": "SR 配合 DLAA 模式即原分辨率抗锯齿；RR 需要线性 SDR 和真实 G-buffer。",
+        "options": {
+          "sr": "SR / DLAA",
+          "rr": "光线重建（RR）"
+        }
+      },
+      "mode": {
+        "name": "质量／分辨率模式",
+        "tooltip": "DLAA 保持输入尺寸；其他模式需要与运行库兼容的显式放大尺寸。",
+        "options": {
+          "quality": "质量",
+          "balanced": "均衡",
+          "performance": "性能",
+          "ultra_performance": "超高性能",
+          "dlaa": "DLAA"
+        }
+      },
+      "output_width": {
+        "name": "输出宽度",
+        "tooltip": "显式偶数输出宽度；DLAA 忽略此值，不缩放输入或引导。"
+      },
+      "output_height": {
+        "name": "输出高度",
+        "tooltip": "显式偶数输出高度，严格保持宽高比；DLAA 保持输入尺寸。"
+      },
+      "start_frame": {
+        "name": "起始帧",
+        "tooltip": "数据包内从零计数的输出起始帧，与 NR 预览范围无关。"
+      },
+      "frame_count": {
+        "name": "输出帧数（0 = 剩余全部）",
+        "tooltip": "0 输出剩余全部；1 输出单帧 VIDEO 供检查。范围超出数据包会报错。"
+      },
+      "history_frames": {
+        "name": "前置历史帧",
+        "tooltip": "计算此前的历史帧但不导出；首个输入帧重置历史，保留源切镜标记。"
+      },
+      "include_audio": {
+        "name": "包含对齐音频",
+        "tooltip": "使用数据包内可选、哈希绑定且零点对齐的音频源，并重编码 AAC；不凭空生成音频。"
+      },
+      "ffmpeg_path": {
+        "name": "ffmpeg 路径",
+        "tooltip": "可选的宿主可执行文件或目录绝对路径；留空使用后端 PATH。"
+      },
+      "ffprobe_path": {
+        "name": "ffprobe 路径",
+        "tooltip": "可选的可执行文件或目录绝对路径；留空使用 PATH 或指定的 ffmpeg 目录。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "视频"
+      },
+      "1": {
+        "name": "报告"
+      }
+    }
+  },
   "DLSSExperimentalRuntimeConfig": {
     "display_name": "DLSS 5 运行时配置",
     "description": "绑定后端、运行库文件、宿主平台、Proton 版本及 Worker 生命周期。Windows 原生启动；Linux 通过 Proton。原生 Linux NR 与官方适配器尚未实现。",
     "inputs": {
       "backend": {
-        "name": "NR 后端",
-        "tooltip": "auto 读取预设后端。direct_nr 是当前路线；官方适配器为占位。",
+        "name": "功能后端",
+        "tooltip": "auto 读取预设。direct_nr：外部 D5V2；owned_nr：CNR1 与薄 caller；owned_sr：启用 SDK 的 CSR1 Worker 与 SR 模型，GPU 验收待完成。 owned_sl 使用独立 CXR1 Worker 和显式渲染数据包。",
         "options": {
           "auto": "自动",
           "direct_nr": "直接 NR",
+          "owned_nr": "自有 NR / Owned NR（实验）",
+          "owned_sr": "自有 SR / DLAA（SDK，实验）",
           "renodx_reshade": "ReShade/RenoDX（诊断）",
-          "nvidia_official": "官方适配器（未实现）"
+          "nvidia_official": "官方适配器（未实现）",
+          "owned_sl": "Streamline SR/DLAA/RR（CXR1）"
         }
       },
       "proton": {
@@ -45,7 +203,7 @@
       },
       "keep_worker_alive": {
         "name": "按需启动并常驻",
-        "tooltip": "开启：按需复用相同尺寸和 NR 参数的实例；关闭：任务后释放。改 NR 参数会重建。"
+        "tooltip": "NR 可复用匹配实例；SR 当前必须关闭，任务后释放。修改 NR 参数会重建其实例。 owned_sl 也必须关闭常驻。"
       },
       "idle_timeout_seconds": {
         "name": "空闲自动释放（秒）",
@@ -88,7 +246,7 @@
     "inputs": {
       "analysis_scale": {
         "name": "光流分析尺寸（百分比）",
-        "tooltip": "光流分析使用工作帧尺寸的百分比；运动矢量会换算回 NR 像素单位。"
+        "tooltip": "光流分析的宽高百分比，不是 SR 输出倍率。50 = 1/4 分析像素，100 = 原尺寸；DIS 均衡档内部还用较粗金字塔层，精细档用最细层。矢量换算回输入像素单位，不重跑几何模型。"
       },
       "scene_cut_threshold": {
         "name": "切镜阈值",
@@ -130,7 +288,7 @@
       },
       "settings": {
         "name": "引导设置",
-        "tooltip": "连接 Video Guides（视频引导）。"
+        "tooltip": "可选旧版引导设置。新工作流请把 Guides 接到 Input Assembler，以组装节点的设置为准。"
       },
       "color_policy": {
         "name": "色彩标签策略",
@@ -327,7 +485,7 @@
   },
   "DLSSExperimentalSetupHelper": {
     "display_name": "DLSS 配置与环境助手",
-    "description": "检查已选运行时、宿主工具、Python 包、跨平台执行桥及光流依赖，不启动 NR Worker 或加载 NR 模型；运行时配置原样透传。",
+    "description": "检查已选运行时、宿主工具、Python 包、跨平台执行桥及光流依赖，不启动 NR Worker 或加载 NR 模型；运行时配置原样透传。 owned_sl 检查 NumPy，使用显式渲染运动场，不运行 DIS/NVOF；CXR1 输入与 GPU 验收独立。",
     "inputs": {
       "runtime": {
         "name": "已选运行时",
@@ -348,6 +506,10 @@
       "include_diagnostics": {
         "name": "包含宿主详细信息",
         "tooltip": "加入更完整的命令输出；可复制报告中会包含本机路径与 GPU 信息。"
+      },
+      "pipeline": {
+        "name": "处理链（可选）",
+        "tooltip": "连接 Input Assembler 或 NR Stage，检查组装后的媒体工具与光流选择。优先于 sequence／flow_provider；不渲染。"
       }
     },
     "outputs": {
@@ -665,6 +827,439 @@
     "outputs": {
       "0": {
         "name": "存储报告"
+      }
+    }
+  },
+  "DLSSExperimentalExternalGuide": {
+    "display_name": "DLSS 外部数值引导",
+    "description": "读取绑定到当前 VIDEO 的运动／深度／置信度／法线／蒙版清单。请求帧才校验哈希、形状和时间戳；不运行估计器、不下载模型。",
+    "inputs": {
+      "sequence": {
+        "name": "已检查素材",
+        "tooltip": "连接与 Input Assembler 相同的 Video Input Adapter sequence；素材内容和视图必须一致。"
+      },
+      "manifest_path": {
+        "name": "引导清单路径 / Manifest path",
+        "tooltip": "ComfyUI 宿主上的 schema-v1 JSON 清单路径；raw/.npy 帧文件相对清单目录。RGB 可视化图不是数值引导。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "数值引导"
+      },
+      "1": {
+        "name": "可复制引导详情"
+      }
+    }
+  },
+  "DLSSExperimentalGuideSelector": {
+    "display_name": "DLSS 外部引导选择器",
+    "description": "只请求所选外部数值引导分支，所选输入缺失直接报错，不自动回退。",
+    "inputs": {
+      "selection": {
+        "name": "选择分支",
+        "tooltip": "选择 A、B 或 C 后才加载对应清单；若其他输出请求未选分支，该分支仍可能执行。",
+        "options": {
+          "a": "A",
+          "b": "B",
+          "c": "C"
+        }
+      },
+      "a": {
+        "name": "A",
+        "tooltip": "数值引导；仅在选中时请求。"
+      },
+      "b": {
+        "name": "B",
+        "tooltip": "数值引导；仅在选中时请求。"
+      },
+      "c": {
+        "name": "C",
+        "tooltip": "数值引导；仅在选中时请求。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "数值引导"
+      },
+      "1": {
+        "name": "可复制引导详情"
+      }
+    }
+  },
+  "DLSSExperimentalSRSettings": {
+    "display_name": "DLSS SR / DLAA 设置",
+    "description": "独立 SR/DLAA 控制。SR Stage 接 Pipeline Render，使用启用 SDK 的 owned_sr 运行时；GPU 验收待完成。不合成运动、设备深度或抖动，尚无 SR A/B 预览。",
+    "inputs": {
+      "mode": {
+        "name": "SR 质量模式 / Mode",
+        "tooltip": "DLAA 保持素材尺寸，SR 输出更大画面；质量名称不等于固定放大比例。",
+        "options": {
+          "DLAA · 原分辨率抗锯齿": "DLAA · 原分辨率抗锯齿",
+          "Quality · 质量": "Quality · 质量",
+          "Balanced · 均衡": "Balanced · 均衡",
+          "Performance · 性能": "Performance · 性能",
+          "Ultra Performance · 超高性能": "Ultra Performance · 超高性能"
+        }
+      },
+      "preset": {
+        "name": "SR 模型预设 / Preset",
+        "tooltip": "建议模型默认；J/K/L/M 是 SDK 提示，其可用性和行为取决于所选运行库。",
+        "options": {
+          "Model default · 模型默认": "Model default · 模型默认",
+          "Preset J · 预设 J": "Preset J · 预设 J",
+          "Preset K · 预设 K": "Preset K · 预设 K",
+          "Preset L · 预设 L": "Preset L · 预设 L",
+          "Preset M · 预设 M": "Preset M · 预设 M"
+        }
+      },
+      "depth_inverted": {
+        "name": "反向 Z 深度 / Reversed-Z",
+        "tooltip": "必须描述数值设备深度的真实编码，不会对深度图取反或转换。"
+      },
+      "auto_exposure": {
+        "name": "NGX 自动曝光 / Auto exposure",
+        "tooltip": "请求内部曝光估计；关闭需提供正值逐帧曝光元数据，不是美术亮度滑块。"
+      },
+      "jitter_policy": {
+        "name": "素材抖动策略 / Jitter",
+        "tooltip": "成片使用零抖动；外部抖动必须来自实际渲染采样，不要虚构偏移。",
+        "options": {
+          "Finished video: zero jitter · 成片零抖动": "Finished video: zero jitter · 成片零抖动",
+          "Actual render metadata · 原始渲染元数据": "Actual render metadata · 原始渲染元数据"
+        }
+      },
+      "motion_jittered": {
+        "name": "运动含渲染抖动",
+        "tooltip": "仅适用于真正包含渲染采样抖动的向量，同时选择原始渲染元数据。"
+      },
+      "hdr": {
+        "name": "声明 HDR 输入",
+        "tooltip": "仅元数据声明；现有 SDR 转换不是 HDR SR 实现。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "SR / DLAA 设置"
+      },
+      "1": {
+        "name": "可复制设置详情"
+      }
+    }
+  },
+  "DLSSExperimentalSRStage": {
+    "display_name": "DLSS SR / DLAA 阶段",
+    "description": "在没有效果阶段的组装输入上声明单个 SR/DLAA 阶段。Pipeline Render 需要匹配的设备深度数值和启用 SDK 的 owned_sr Worker。本节点不渲染，不支持混合 NR/SR 栈或 SR A/B 预览。",
+    "inputs": {
+      "pipeline": {
+        "name": "已组装输入",
+        "tooltip": "连接尚未添加效果阶段的 Input Assembler；设备深度须匹配素材、视图、网格及时间戳。"
+      },
+      "settings": {
+        "name": "SR / DLAA 设置",
+        "tooltip": "连接 SR Settings，不是 NR Look。当前媒体执行需要 SDR、零抖动和自动曝光。"
+      },
+      "output_width": {
+        "name": "SR 输出宽度",
+        "tooltip": "明确指定更大目标，保持素材宽高比；DLAA 忽略此值并保持原尺寸。"
+      },
+      "output_height": {
+        "name": "SR 输出高度",
+        "tooltip": "明确指定目标高度。Pipeline Render 的尺寸必须保持 100，不做额外缩放。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "SR 媒体处理链"
+      },
+      "1": {
+        "name": "可复制阶段报告"
+      }
+    }
+  },
+  "DLSSExperimentalSRPlan": {
+    "display_name": "DLSS SR 输入计划",
+    "description": "无需解码或启动 Worker 即可检查尺寸和 SR/DLAA 数值引导声明，报告兼容性和待准备内容，不生成视频。",
+    "inputs": {
+      "settings": {
+        "name": "SR / DLAA 设置",
+        "tooltip": "连接 SR / DLAA Settings，不是 NR Look。"
+      },
+      "input_width": {
+        "name": "手动输入宽度",
+        "tooltip": "未接 sequence/pipeline 时使用，连接后以已检查的素材尺寸为准。"
+      },
+      "input_height": {
+        "name": "手动输入高度",
+        "tooltip": "未接 sequence/pipeline 时使用，连接后以已检查的素材尺寸为准。"
+      },
+      "output_width": {
+        "name": "SR 输出宽度",
+        "tooltip": "显式目标尺寸，保持精确宽高比；DLAA 始终使用素材原尺寸。"
+      },
+      "output_height": {
+        "name": "SR 输出高度",
+        "tooltip": "SR 必须放大素材；本节点不缩放帧，也不猜测质量档位的放大倍率。"
+      },
+      "sequence": {
+        "name": "已检查素材（可选）",
+        "tooltip": "Video Input Adapter sequence 和 pipeline 二选一；仅检查素材尺寸。"
+      },
+      "pipeline": {
+        "name": "输入处理链（可选）",
+        "tooltip": "检查素材尺寸和外部运动／深度声明，不执行 NR、光流或 SR，也不读取、验证逐帧张量。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "可复制 SR 输入计划"
+      }
+    }
+  },
+  "DLSSExperimentalFlowSelector": {
+    "display_name": "DLSS 光流方案选择",
+    "description": "只请求所选的惰性提供者分支；缺失输入明确报错，不自动回退。",
+    "inputs": {
+      "selection": {
+        "name": "选择分支",
+        "tooltip": "连接需要比较的方案，只执行选中的分支。",
+        "options": {
+          "a": "A",
+          "b": "B",
+          "c": "C"
+        }
+      },
+      "a": {
+        "name": "A",
+        "tooltip": "连接需要比较的方案，只执行选中的分支。"
+      },
+      "b": {
+        "name": "B",
+        "tooltip": "连接需要比较的方案，只执行选中的分支。"
+      },
+      "c": {
+        "name": "C",
+        "tooltip": "连接需要比较的方案，只执行选中的分支。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "光流配置"
+      },
+      "1": {
+        "name": "可复制的选择详情"
+      }
+    }
+  },
+  "DLSSExperimentalInputAssembler": {
+    "display_name": "DLSS 输入组装",
+    "description": "组装已检查 VIDEO 与数值引导。可切换已配置 DIS/NVIDIA 光流或外部当前到前帧像素运动。深度、法线、蒙版和置信度只报告，不由 NR 消费；这里不运行模型。",
+    "inputs": {
+      "sequence": {
+        "name": "已检查素材",
+        "tooltip": "连接视频输入适配节点，其引导设置可以不接。"
+      },
+      "flow_provider": {
+        "name": "运动提供者",
+        "tooltip": "可选；覆盖引导设置或输入适配中的光流方案。"
+      },
+      "settings": {
+        "name": "引导设置",
+        "tooltip": "可选；分析尺寸、切镜与一致性诊断。不接则继承输入适配设置。"
+      },
+      "external_motion": {
+        "name": "外部运动引导 / External motion",
+        "tooltip": "连接同源的当前帧到前帧像素光流；仅“外部”模式读取，必须匹配素材哈希及时间戳。"
+      },
+      "depth": {
+        "name": "深度引导（NR 仅元数据）",
+        "tooltip": "可选数值深度附件；NR 不消费，相对深度不等同设备深度。"
+      },
+      "normals": {
+        "name": "法线引导（NR 仅元数据）",
+        "tooltip": "可选视图／世界空间数值法线，NR 不消费。"
+      },
+      "mask": {
+        "name": "蒙版引导（NR 仅元数据）",
+        "tooltip": "可选有效性／响应／合成数值蒙版，不会遮罩 NR 运动或输出。"
+      },
+      "confidence": {
+        "name": "置信度引导（NR 仅元数据）",
+        "tooltip": "可选运动／深度数值置信度，NR 不据此加权或剔除向量。"
+      },
+      "motion_source": {
+        "name": "运动来源 / Motion source",
+        "tooltip": "已配置模式使用 DIS/NVIDIA/零运动设置；外部模式显式请求 external_motion，不静默回退。",
+        "options": {
+          "configured": "已配置光流估计器 / Configured",
+          "external": "外部数值引导 / External"
+        }
+      },
+      "camera": {
+        "name": "相机",
+        "tooltip": "与确切 VIDEO SHA-256 绑定的标定、估计或渲染器相机时间线。不执行位姿估计或猜测投影；需要完整源 CFR 时间线及重置信息。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "媒体处理计划"
+      },
+      "1": {
+        "name": "可复制的组装详情"
+      }
+    }
+  },
+  "DLSSExperimentalNRStage": {
+    "display_name": "DLSS NR 阶段",
+    "description": "添加 Look 或 Stack，不立即渲染；可串联，总计最多三轮 NR，也可分支比较。",
+    "inputs": {
+      "pipeline": {
+        "name": "输入计划",
+        "tooltip": "连接输入组装或前一 NR 阶段；中间不编码视频。"
+      },
+      "profile": {
+        "name": "NR 效果或叠加配置",
+        "tooltip": "连接 NR Look 或 Stack；Stack 的全部轮次计入总数。"
+      },
+      "enabled": {
+        "name": "启用阶段",
+        "tooltip": "关闭后保留直通阶段；所有阶段及对照都关闭时不计算光流。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "输出计划"
+      },
+      "1": {
+        "name": "可复制的阶段详情"
+      }
+    }
+  },
+  "DLSSExperimentalPipelinePreview": {
+    "display_name": "DLSS 处理链预览",
+    "description": "处理链的节点内 A/B 预览。VIDEO 输出保留预览的范围、单帧模式和尺寸。正式输出请从同一 NR Stage 分支连接 Pipeline Render 与保存视频。",
+    "inputs": {
+      "runtime": {
+        "name": "运行时配置",
+        "tooltip": "选择运行库文件、宿主/Proton 与 Worker 生命周期。"
+      },
+      "profile_a": {
+        "name": "对照效果 A（可选）",
+        "tooltip": "可选第二套 NR 效果或多层轮次。未接时是同尺寸同色彩的输入对照；不会冻结参数。"
+      },
+      "start_time": {
+        "name": "预览起点（秒）",
+        "tooltip": "相对输入 VIDEO 起点的秒数；上游截取后从新起点计时。"
+      },
+      "duration": {
+        "name": "手动区间长度（秒）",
+        "tooltip": "到末尾模式忽略此值。否则为片段长度，遇输入末尾缩短；单帧时仅限制游标。不是结束时间、批大小或预热。"
+      },
+      "preview_scale": {
+        "name": "预览尺寸（百分比）",
+        "tooltip": "同时缩放宽高：50 约为四分之一像素，100 为输入尺寸。会改变 NR 输入与视频输出，不只是显示，也不是 SR。",
+        "options": {
+          "50": "50",
+          "75": "75",
+          "100": "100"
+        }
+      },
+      "contract": {
+        "name": "历史处理设置（可选）",
+        "tooltip": "仅配置历史处理。默认上下文 0.5 秒，新 Worker 预热 120 次，均不增加输出时长。"
+      },
+      "preview_mode": {
+        "name": "排队模式",
+        "tooltip": "Comfy 主运行按钮使用此模式。卡片按钮仅为本次指定单帧/片段，不改保存值、不运行下游保存。",
+        "options": {
+          "range": "选定片段",
+          "frame": "游标单帧"
+        }
+      },
+      "cursor_time": {
+        "name": "游标偏移（区间内秒）",
+        "tooltip": "区间内偏移；起点 10 加游标 1.5 取约 11.5 秒的帧。仅单帧使用，片段忽略。"
+      },
+      "process_to_end": {
+        "name": "处理到视频末尾",
+        "tooltip": "自动读取剩余时长；起点 0 为全视频。单帧按钮仍只输出一帧。保留帧数及磁盘容量检查。"
+      },
+      "retain_prepared_cache": {
+        "name": "保留输入准备缓存",
+        "tooltip": "在共享配额内保留小型准备缓存，方便调节 Look 时复用。大区间始终流式处理，不保存整段输入缓存。关闭后成功任务删除小缓存；失败或并发使用者要求保留时仍保留。旧的临时预览在 DLSS 缓存与文件管理中清理。"
+      },
+      "pipeline": {
+        "name": "媒体处理计划",
+        "tooltip": "连接 NR 阶段；仅预览／输出节点实际执行，正式输出范围独立于预览。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "预览会话"
+      },
+      "1": {
+        "name": "状态 JSON"
+      },
+      "2": {
+        "name": "视频 B"
+      },
+      "3": {
+        "name": "视频 A"
+      }
+    }
+  },
+  "DLSSExperimentalPipelineRender": {
+    "display_name": "DLSS 处理链输出",
+    "description": "输入组装器须连接相机及设备深度，再连接处理链输出与 owned_sl。仅单个 Streamline SR/DLAA 阶段；不从 VIDEO 推测 RR 材质，也不混合 NR/SL。 仅供 Streamline：计算前置历史后输出处理起点的一帧。NR 单帧请用处理链预览。",
+    "inputs": {
+      "runtime": {
+        "name": "运行时配置",
+        "tooltip": "选择运行库文件、宿主/Proton 与 Worker 生命周期。"
+      },
+      "start_time": {
+        "name": "处理起点（秒）",
+        "tooltip": "相对输入 VIDEO 起点的秒数，独立于预览。"
+      },
+      "duration": {
+        "name": "处理时长（秒，0 = 剩余全部）",
+        "tooltip": "到末尾模式忽略此值。否则为指定时长，旧版 0 也表示剩余全部。需要足够磁盘。"
+      },
+      "scale": {
+        "name": "输出尺寸（百分比）",
+        "tooltip": "NR：100 保持素材尺寸，50/75 缩小。SR：必须为 100；目标分辨率来自 SR Stage，不由此百分比决定。",
+        "options": {
+          "50": "50",
+          "75": "75",
+          "100": "100"
+        }
+      },
+      "contract": {
+        "name": "历史处理设置（可选）",
+        "tooltip": "输出时间范围单独控制。NR 使用历史／预热设置；SR 只使用前置历史，不重复 NR 预热。"
+      },
+      "process_to_end": {
+        "name": "处理到视频末尾",
+        "tooltip": "从处理起点输出到输入末尾，忽略手动时长。SR 输出分辨率仍由 SR Stage 决定。"
+      },
+      "retain_prepared_cache": {
+        "name": "保留输入准备缓存",
+        "tooltip": "NR：配额内保留可复用小型准备缓存，大区间流式处理。SR 始终流式处理，不保留准备后的原始帧缓存，此开关不改变 SR。"
+      },
+      "pipeline": {
+        "name": "媒体处理计划",
+        "tooltip": "连接 NR 阶段或单个 SR/DLAA 阶段，不支持混合 NR/SR 栈。SR 需要 owned_sr；输出分辨率在 SR Stage 设置。"
+      },
+      "single_frame": {
+        "name": "单帧",
+        "tooltip": "仅供 Streamline：计算前置历史后输出处理起点的一帧。NR 单帧请用处理链预览。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "视频"
+      },
+      "1": {
+        "name": "诊断报告"
       }
     }
   }

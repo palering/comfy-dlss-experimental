@@ -7,8 +7,10 @@ Audience: public
 The existing `DLSSExperimentalPrepareTemporalSequence` ID now displays as
 **DLSS Video Input Adapter**. It accepts VIDEO plus Video Guides settings,
 returns the same sequence/report socket types, and is also an output node so
-its **Check input (no NR)** button can queue only its ancestors. No Worker,
-runtime preset or GPU initialization participates in inspection.
+its **Check input (no NR)** button queues itself and its ancestors. The Adapter
+itself does not start a Worker or initialize a GPU. However, enabled upstream
+model reconstruction also executes, so the entire inspection chain is not
+necessarily model-free.
 
 ## Information and status
 
@@ -24,6 +26,21 @@ timing validation. File-backed VIDEO is probed without decoding all frames.
 Generic/tensor/stream VIDEO defers header validation to selected-range
 materialization. The card explicitly labels its last check; rerun after changing
 upstream media. GPU/Proton readiness remains a separate Runtime concern.
+
+The check button tracks submission, queueing, execution and termination by the
+accepted prompt ID. Execution errors, interruption and submission failure release
+the waiting state. A successful task without this node's report explicitly asks
+you to check upstream reconstruction switches, sampling compatibility or skipped
+nodes; it does not remain queued. Queue completion does not imply every downstream
+node executed.
+
+Cached reports are recovered only from that task. Changing this node or upstream
+settings while checking marks the returned result stale. Previous reports are
+hidden while waiting or when no new result exists, not presented as a new success.
+Active checks use low-frequency history/queue reconciliation. Connection failures
+or disappearance from the queue without history produce an unconfirmed status,
+never an automatic retry. Removing a node releases listeners and timers. Setup
+and input/processing-plan cards share this lifecycle handling.
 
 ## Explicit missing-color policy
 

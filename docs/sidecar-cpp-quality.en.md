@@ -22,6 +22,9 @@ Proton. These rules apply to all sidecar changes.
   conversions before allocating or copying frame data.
 - Compile with warnings enabled and keep the build warning-free. Sanitizer
   builds should be added for code paths that can run without proprietary DLLs.
+- Caller forwarding uses a separate declared ABI/version. Keep Init parameter
+  layouts distinct, preserve a real return site in the shim, and validate exports
+  after optimization. Never replace the legacy video executable with a thin DLL.
 
 ## Ownership and lifetime
 

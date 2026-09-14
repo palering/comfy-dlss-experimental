@@ -1,0 +1,791 @@
+{
+  "id": "7e68cad3-8ab0-4cae-95e9-f9ef68a78d95",
+  "revision": 0,
+  "last_node_id": 10,
+  "last_link_id": 11,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadVideo",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        290,
+        360
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "file",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "file"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadVideo"
+      },
+      "widgets_values": [
+        "example-input.mp4"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "DLSSExperimentalPrepareTemporalSequence",
+      "pos": [
+        380,
+        0
+      ],
+      "size": [
+        510,
+        760
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 1
+        },
+        {
+          "name": "settings",
+          "type": "DLSSE_TEMPORAL_SETTINGS",
+          "link": null
+        },
+        {
+          "name": "color_policy",
+          "type": "COMBO",
+          "widget": {
+            "name": "color_policy"
+          },
+          "link": null
+        },
+        {
+          "name": "assumed_transfer",
+          "type": "COMBO",
+          "widget": {
+            "name": "assumed_transfer"
+          },
+          "link": null
+        },
+        {
+          "name": "assumed_range",
+          "type": "COMBO",
+          "widget": {
+            "name": "assumed_range"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "sequence",
+          "type": "DLSSE_TEMPORAL_SEQUENCE",
+          "links": [
+            2,
+            3,
+            11
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalPrepareTemporalSequence"
+      },
+      "widgets_values": [
+        "strict",
+        "bt709",
+        "tv",
+        true,
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 3,
+      "type": "DLSSExperimentalExternalGuide",
+      "pos": [
+        380,
+        650
+      ],
+      "size": [
+        480,
+        160
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "sequence",
+          "type": "DLSSE_TEMPORAL_SEQUENCE",
+          "link": 2
+        },
+        {
+          "name": "manifest_path",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "manifest_path"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "guide",
+          "type": "DLSS_GUIDE_PROVIDER",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalExternalGuide"
+      },
+      "widgets_values": [
+        "path/to/matching-device-depth/manifest.json"
+      ],
+      "title": "Required: numerical device depth · 必须填入匹配的设备深度"
+    },
+    {
+      "id": 4,
+      "type": "DLSSExperimentalDISFlow",
+      "pos": [
+        380,
+        1100
+      ],
+      "size": [
+        360,
+        260
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "preset",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "preset"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "flow_provider",
+          "type": "DLSSE_OPTICAL_FLOW_PROVIDER",
+          "links": [
+            5
+          ]
+        },
+        {
+          "name": "settings_json",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalDISFlow"
+      },
+      "widgets_values": [
+        "均衡 · Balanced"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "DLSSExperimentalInputAssembler",
+      "pos": [
+        820,
+        0
+      ],
+      "size": [
+        420,
+        620
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "sequence",
+          "type": "DLSSE_TEMPORAL_SEQUENCE",
+          "link": 3
+        },
+        {
+          "name": "flow_provider",
+          "type": "DLSSE_OPTICAL_FLOW_PROVIDER",
+          "link": 5
+        },
+        {
+          "name": "settings",
+          "type": "DLSSE_TEMPORAL_SETTINGS",
+          "link": null
+        },
+        {
+          "name": "external_motion",
+          "type": "DLSS_GUIDE_PROVIDER",
+          "link": null
+        },
+        {
+          "name": "depth",
+          "type": "DLSS_GUIDE_PROVIDER",
+          "link": 4
+        },
+        {
+          "name": "normals",
+          "type": "DLSS_GUIDE_PROVIDER",
+          "link": null
+        },
+        {
+          "name": "mask",
+          "type": "DLSS_GUIDE_PROVIDER",
+          "link": null
+        },
+        {
+          "name": "confidence",
+          "type": "DLSS_GUIDE_PROVIDER",
+          "link": null
+        },
+        {
+          "name": "motion_source",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "motion_source"
+          }
+        },
+        {
+          "name": "camera",
+          "type": "DLSSE_CAMERA_PROVIDER",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "pipeline",
+          "type": "DLSSE_MEDIA_PIPELINE",
+          "links": [
+            6
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalInputAssembler"
+      },
+      "widgets_values": [
+        "configured"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "DLSSExperimentalCameraInput",
+      "pos": [
+        820,
+        650
+      ],
+      "size": [
+        350,
+        330
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "sequence",
+          "type": "DLSSE_TEMPORAL_SEQUENCE",
+          "link": 11
+        },
+        {
+          "name": "manifest_path",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "manifest_path"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "camera",
+          "type": "DLSSE_CAMERA_PROVIDER",
+          "links": [
+            7
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalCameraInput"
+      },
+      "widgets_values": [
+        "path/to/matching-camera/camera.json"
+      ],
+      "title": "Camera timeline · 相机时间线"
+    },
+    {
+      "id": 7,
+      "type": "DLSSExperimentalStreamlineStage",
+      "pos": [
+        1250,
+        0
+      ],
+      "size": [
+        350,
+        330
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pipeline",
+          "type": "DLSSE_MEDIA_PIPELINE",
+          "link": 6
+        },
+        {
+          "name": "mode",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "mode"
+          }
+        },
+        {
+          "name": "output_width",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "output_width"
+          }
+        },
+        {
+          "name": "output_height",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "output_height"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "pipeline",
+          "type": "DLSSE_MEDIA_PIPELINE",
+          "links": [
+            8
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalStreamlineStage"
+      },
+      "widgets_values": [
+        "quality",
+        960,
+        540
+      ],
+      "title": "Streamline SR / DLAA · 显式相机链路"
+    },
+    {
+      "id": 8,
+      "type": "DLSSExperimentalRuntimeConfig",
+      "pos": [
+        1250,
+        650
+      ],
+      "size": [
+        510,
+        730
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "backend",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "backend"
+          }
+        },
+        {
+          "name": "proton",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "proton"
+          }
+        },
+        {
+          "name": "linux_display_backend",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "linux_display_backend"
+          }
+        },
+        {
+          "name": "worker_policy",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "worker_policy"
+          }
+        },
+        {
+          "name": "runtime_preset",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "runtime_preset"
+          }
+        },
+        {
+          "name": "catalog",
+          "type": "DLSS5_RUNTIME_CATALOG",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "runtime",
+          "type": "DLSS5_RUNTIME",
+          "links": [
+            9
+          ]
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalRuntimeConfig"
+      },
+      "widgets_values": [
+        "owned_sl",
+        "auto",
+        "auto",
+        "isolated",
+        "runtime-presets/owned-sl.json",
+        false,
+        300,
+        "auto",
+        "proton",
+        ""
+      ],
+      "title": "CXR1 Streamline Worker · 已验证后端"
+    },
+    {
+      "id": 9,
+      "type": "DLSSExperimentalPipelineRender",
+      "pos": [
+        1700,
+        0
+      ],
+      "size": [
+        350,
+        330
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pipeline",
+          "type": "DLSSE_MEDIA_PIPELINE",
+          "link": 8
+        },
+        {
+          "name": "runtime",
+          "type": "DLSS5_RUNTIME",
+          "link": 9
+        },
+        {
+          "name": "start_time",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "start_time"
+          }
+        },
+        {
+          "name": "duration",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "duration"
+          }
+        },
+        {
+          "name": "scale",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "scale"
+          }
+        },
+        {
+          "name": "contract",
+          "type": "DLSS5_RENDER_CONTRACT",
+          "link": null
+        },
+        {
+          "name": "process_to_end",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "process_to_end"
+          }
+        },
+        {
+          "name": "retain_prepared_cache",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "retain_prepared_cache"
+          }
+        },
+        {
+          "name": "single_frame",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "single_frame"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": [
+            10
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalPipelineRender"
+      },
+      "widgets_values": [
+        0,
+        1,
+        100,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": 10,
+      "type": "SaveVideo",
+      "pos": [
+        2150,
+        0
+      ],
+      "size": [
+        320,
+        460
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 10
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        },
+        {
+          "name": "format",
+          "type": "COMFY_DYNAMICCOMBO_V3",
+          "widget": {
+            "name": "format"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveVideo"
+      },
+      "widgets_values": [
+        "video/DLSS_Streamline",
+        "auto",
+        "auto"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "VIDEO"
+    ],
+    [
+      2,
+      2,
+      0,
+      3,
+      0,
+      "DLSSE_TEMPORAL_SEQUENCE"
+    ],
+    [
+      3,
+      2,
+      0,
+      5,
+      0,
+      "DLSSE_TEMPORAL_SEQUENCE"
+    ],
+    [
+      4,
+      3,
+      0,
+      5,
+      4,
+      "DLSS_GUIDE_PROVIDER"
+    ],
+    [
+      5,
+      4,
+      0,
+      5,
+      1,
+      "DLSSE_OPTICAL_FLOW_PROVIDER"
+    ],
+    [
+      6,
+      5,
+      0,
+      7,
+      0,
+      "DLSSE_MEDIA_PIPELINE"
+    ],
+    [
+      7,
+      6,
+      0,
+      5,
+      9,
+      "DLSSE_CAMERA_PROVIDER"
+    ],
+    [
+      8,
+      7,
+      0,
+      9,
+      0,
+      "DLSSE_MEDIA_PIPELINE"
+    ],
+    [
+      9,
+      8,
+      0,
+      9,
+      1,
+      "DLSS5_RUNTIME"
+    ],
+    [
+      10,
+      9,
+      0,
+      10,
+      0,
+      "VIDEO"
+    ],
+    [
+      11,
+      2,
+      0,
+      6,
+      0,
+      "DLSSE_TEMPORAL_SEQUENCE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.48,
+      "offset": [
+        40,
+        40
+      ]
+    },
+    "experimental_prerequisites": [
+      "owned_sl/CXR1 runtime. Existing owned_sr/CSR1 and NR nodes remain separate; no implicit backend substitution.",
+      "Provide device depth and an explicit camera timeline bound to the exact VIDEO SHA-256, unmodified full-resolution grid and source PTS.",
+      "Camera timeline version 1: every CFR source frame, explicit projection/pose/temporal transforms, reset on first frame and camera cuts; no pose estimator runs here.",
+      "Normalize input to sRGB. Example SR output 960x540 requires a smaller 16:9 source; DLAA keeps source size. Test a short range first.",
+      "Pipeline Render scale must remain 100. single_frame outputs one frame with preceding history; NR A/B Preview is separate."
+    ]
+  },
+  "version": 0.4
+}

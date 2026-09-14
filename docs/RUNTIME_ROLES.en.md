@@ -30,7 +30,7 @@ behavior, and external dependency—not a source-level reconstruction.
 A third namesake is NVIDIA's driver-managed **NGX bootstrap/core `nvngx.dll`**.
 It is neither the video Worker nor a project caller shim and must not overwrite either.
 
-## Active implementation
+## Preserved legacy implementation (`direct_nr`)
 
 ```text
 ComfyUI Python
@@ -39,11 +39,14 @@ ComfyUI Python
   -> nvngx_dlssnr.dll                  matching NR runtime
 ```
 
-The project currently builds neither the real Feature 18 Worker nor an additional
-Zonnery caller shim. `dlss-native-relay.exe` supervises a process and transports
+This legacy backend does not use our Worker/caller. `dlss-native-relay.exe` supervises a process and transports
 D5V2 bytes; it does not create a D3D12 device or NGX feature.
 
-## Accepted refactoring direction
+## Project-owned backend (`owned_nr`)
+
+The separate [owned runtime](owned-runtime.en.md) implements this route for
+experimental NR. The camera-aware Streamline path uses its own `owned_sl`
+backend and Worker, described below; it is not an NR caller replacement.
 
 ```text
 ComfyUI Python
@@ -75,6 +78,25 @@ The refactor follows these rules:
 A thin shim isolates caller-validation changes, but cannot make NR work by itself.
 The substantive work remains D3D12/NGX resource contracts, input reconstruction,
 feature lifecycle, and cross-platform process boundaries.
+
+## Streamline reconstruction backend (`owned_sl`)
+
+The [reconstruction nodes](reconstruction-nodes.en.md) use an explicit renderer
+bundle and CXR1, not the old `owned_sr`/CSR1 or NR wire contracts:
+
+```text
+Renderer bundle -> host-neutral Python execution -> comfy-dlss-sl-worker.exe
+  -> sl.interposer.dll + sl.common.dll + NvLowLatencyVk.dll
+  -> sl.dlss.dll + nvngx_dlss.dll          SR / DLAA
+  -> sl.dlss_d.dll + nvngx_dlssd.dll       Ray Reconstruction / RR + DLAA
+  -> encoded VIDEO -> ComfyUI SaveVideo
+```
+
+The `owned_sl` preset binds exactly these eight files and an explicit project
+UUID. Jobs use a hash-verified snapshot and isolated Worker. No NR `nvngx.dll`
+caller shim, persistent worker, FG or MFG is used. The SR/DLAA/RR/RR+DLAA routes
+have bounded synthetic Linux/Proton GPU and Comfy execution acceptance; this is
+not native-Windows, ordinary-video reconstruction, or long-video quality proof.
 
 ## Feature DLLs are not hosts
 

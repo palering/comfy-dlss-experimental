@@ -2,6 +2,7 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { t, bindText, disposeTranslations, onLocaleChange } from "./i18n.js";
 import { copyDiagnosticText } from "./preview_diagnostics.js";
+import { decodeDiagnosticReport } from "./diagnostic_report.js";
 
 const NODE = "DLSSExperimentalStorageManager";
 const size = bytes => bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(2)} GiB`
@@ -67,6 +68,7 @@ app.registerExtension({
       copy.disabled = !report;
     }
     function show(value) {
+      value = decodeDiagnosticReport(value);
       if (removed || !value) return;
       report = value;
       selected.clear();

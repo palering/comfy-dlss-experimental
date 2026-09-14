@@ -17,6 +17,8 @@ REQUIRED_RENO_COMPONENTS = {
     "nvngx_dlssnr",
 }
 REQUIRED_DIRECT_COMPONENTS = {"relay", "worker", "nvngx_dlssnr"}
+REQUIRED_OWNED_COMPONENTS = {"worker", "caller", "nvngx_dlssnr"}
+REQUIRED_SR_COMPONENTS = {"worker", "nvngx_dlss"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +61,25 @@ class RuntimePreset:
                 raise ValueError("direct_nr requires exactly relay, worker and nvngx_dlssnr components")
             if self.wine_dll_overrides:
                 raise ValueError("direct_nr does not load ReShade/Wine override presets")
+        elif self.backend == "owned_nr":
+            if set(self.components) != REQUIRED_OWNED_COMPONENTS:
+                raise ValueError("owned_nr requires exactly worker, caller and nvngx_dlssnr components")
+            if self.wine_dll_overrides:
+                raise ValueError("owned_nr does not load ReShade/Wine override presets")
+        elif self.backend == "owned_sr":
+            if set(self.components) != REQUIRED_SR_COMPONENTS:
+                raise ValueError("owned_sr requires exactly worker and nvngx_dlss; the NR caller shim is not used")
+            if self.wine_dll_overrides:
+                raise ValueError("owned_sr does not load ReShade/Wine override presets")
+            from .sr_runtime import project_id
+            project_id(self.compatibility.get("project_id"))
+        elif self.backend == "owned_sl":
+            from .sl_runtime import SL_COMPONENTS, project_id
+            if set(self.components) != set(SL_COMPONENTS):
+                raise ValueError("owned_sl requires the CXR1 Worker and exactly the seven SR/RR runtime DLL roles")
+            if self.wine_dll_overrides:
+                raise ValueError("owned_sl does not load ReShade/Wine override presets")
+            project_id(self.compatibility.get("project_id"))
         elif self.backend != "nvidia_official":
             raise ValueError(f"Unknown backend: {self.backend}")
         format_wine_dll_overrides(self.wine_dll_overrides)
@@ -67,9 +88,17 @@ class RuntimePreset:
 def resolve_component_paths(preset: RuntimePreset, *, base_dir: Path) -> dict[str, Path]:
     resolved: dict[str, Path] = {}
     for name, raw_path in preset.components.items():
-        if raw_path == "@bundled/relay" and name == "relay":
+        if name in {"relay", "worker", "caller"} and raw_path == f"@bundled/{name}":
+            if name in {"worker", "caller"} and preset.backend != "owned_nr":
+                # SR requires a separately built SDK-capable Worker. Existing
+                # helper bundles do not promise that capability.
+                if preset.backend == "owned_sr":
+                    raise ValueError("SR requires an explicit SDK-enabled Worker path; the bundled NR helper does not include the SR SDK")
+                if preset.backend == "owned_sl":
+                    raise ValueError("owned_sl requires an explicit CXR1 Worker path; bundled NR helpers are not interchangeable")
+                raise ValueError("Bundled Worker/caller use CNR1; select an owned_nr preset, not the D5V2 backend")
             from .helper_artifacts import find_helper
-            resolved[name] = find_helper("relay")
+            resolved[name] = find_helper(name)
             continue
         path = Path(raw_path).expanduser()
         if not path.is_absolute():

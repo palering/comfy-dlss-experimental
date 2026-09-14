@@ -11,6 +11,18 @@ Audience: public
 > **目前尚未发布预编译 helper Release 包**。Linux/Proton 已进行 GPU 实测；
 > Windows 代码和 CI 已有，但 Windows GPU 实机验收仍待完成。
 
+下面的快速开始保留旧 `direct_nr` 路线。可选的[自有 `owned_nr` 运行时](docs/owned-runtime.zh-CN.md)
+以我们的 Worker 与薄 caller 替代外部 Worker，仍需用户提供 NR 模型。
+[实验性 SR/DLAA 执行链](docs/super-resolution.zh-CN.md)的源码也已接入，但需要另行
+链接 SDK 的 Worker 和设备深度数值输入，该 CSR1 节点路径**尚未通过 GPU 验收**。
+独立 [Streamline 重建节点](docs/reconstruction-nodes.zh-CN.md)使用 `owned_sl`／CXR1
+与显式相机／渲染数据包；SR、DLAA、RR、RR+DLAA 已通过有界 GPU、文件执行及 Comfy
+SaveVideo 测试，也包含单帧输出。这不代表普通 MP4 已具备 RR 输入，也不是自然视频画质验收。
+
+统一 [VIDEO → Streamline 路径](docs/streamline-video-input.zh-CN.md)也已连接输入组装器、
+显式相机／深度、Streamline 阶段和处理链输出。SR/DLAA、DIS、历史单帧及音频区间已通过
+有界 Linux GPU 和实际 Comfy SaveVideo 验收；相机估计器本身仍由外部提供。
+
 [快速开始](#quick-start) · [前置条件](#前置条件) ·
 [项目目录](#project-layout) · [自行构建](#build-from-source) ·
 [示例工作流](#示例工作流)
@@ -68,14 +80,21 @@ Audience: public
 - **NR Look** 调节增强强度、风格和实验参数。
 - **NR Pass Stack** 将 1–3 个 Look 无损级联，复用原始运动引导且只编码最终结果。
 - 可连接的 **DIS CPU 光流**与可选 **NVIDIA 硬件光流**。
+- 导入[外部数值光流](docs/external-guides.zh-CN.md)，校验素材／哈希／时间；可附加深度、法线、蒙版和置信度并明确标注是否消费。
+- 独立配置[实验性 SR / DLAA](docs/super-resolution.zh-CN.md)：SR Input Plan 检查输入，SR Stage → Pipeline Render 提供 SDK 执行链，GPU 验收待完成。
 - 视频信息检查、显式解释缺失色彩标签、可选 SDR → sRGB 工作空间转换。
 - **配置与环境助手**汇总校验已选运行时、组件哈希、媒体/Python 依赖、平台桥接和实际光流配置。
 - 独立缓存颜色/光流准备结果；改 Look 不重复准备相同输入。
 - 按任务释放或懒加载常驻 Worker，查看耗时、资源、记录并手动释放。
 - 输出标准 **VIDEO**，连接 ComfyUI 原生 **保存视频 / Save Video**。
 
-**尚未实现：**SR 超分、FG 补帧、HDR 处理、外部深度/材质/蒙版输入、
-原生 Linux NR、对比分屏视频导出。部分实验参数可能在某些 Worker/模型上无可见响应。
+**尚未实现：**FG 补帧、HDR 处理、混合 NR/SR 栈、SR A/B 预览、NR 消费深度／法线／蒙版／置信度、
+材质重建、原生 Linux NR、对比分屏视频导出。部分实验参数可能在某些 Worker/模型上无可见响应。
+
+**实验性 FG 需要前台焦点：**当前 Present 捕获测试要求 **GPU 主机上的 Worker 窗口**
+保持焦点，不是要求 ComfyUI 浏览器置顶。后台 FG 与 Comfy FG 节点尚不可用；NR 及已测试的
+SR／DLAA／RR 重建路径不需要前台焦点。详见
+[FG 窗口要求与暂停选项](docs/streamline-reconstruction.zh-CN.md#fg-窗口焦点与暂停选项)。
 
 ## 前置条件
 
@@ -121,7 +140,7 @@ Audience: public
 | `dlss-native-relay.exe` | **必需的本项目 helper。** 从本仓库源码构建，不是 NVIDIA 下载文件，也不是把某个 DLL 改名而来。 |
 | `dlss-nvof-helper[.exe]` | **可选的本项目 helper。** 只有 NVIDIA 光流需要；DIS 不用。 |
 | ReShade `dxgi.dll`、`renodx-dlss5*.addon64` | 当前 `direct_nr` 后端**没有使用**；只保留为研究路线材料。 |
-| `nvngx_dlss.dll`、`D3DCompiler_47.dll`、`sl.*.dll`、独立 caller shim | 当前后端**没有使用**。不要把 SR/Streamline/ReShade 的清单混入本 NR 配置。 |
+| `nvngx_dlss.dll`、`D3DCompiler_47.dll`、`sl.*.dll`、独立 caller shim | **`direct_nr` 不使用。**可选 `owned_sr` 以启用 SDK 的 Worker 使用 `nvngx_dlss.dll`，`owned_nr` 使用我们的薄 caller；不要把这些独立功能的绑定混入快速开始的 NR 配对。 |
 
 [外部文件专项文档](docs/DLL_PREPARATION.zh-CN.md)把 Zonnery 播放器和 DLSS5 Video
 Converter 的不同文件要求逐项映射到我们的后端，并区分三种身份完全不同的 `nvngx.dll`。
@@ -179,6 +198,10 @@ Windows 目标改为 `--target windows-x86_64`。输出为 `sidecar/build/dlss-n
 另见[开发与测试](docs/DEVELOPMENT.zh-CN.md)、[C++ 质量要求](docs/sidecar-cpp-quality.zh-CN.md)。
 交叉编译成功不等于 Windows GPU 实机验收。
 
+独立实验 SR 路线需要已有 Windows MSVC 工具链与官方 SDK，构建同一个 Worker；
+NR 的 Zig 构建不链接 SR。[SR 构建命令与文件要求](docs/super-resolution.zh-CN.md#运行时文件与构建)
+也说明了手动 Windows 构建工作流及尚未完成的 GPU 验收边界。
+
 ## 示例工作流
 
 下载 JSON（GitHub 中选择 **Raw / Download raw file**），拖入 ComfyUI 或使用“打开”导入。
@@ -190,6 +213,11 @@ Windows 目标改为 `--target windows-x86_64`。输出为 `sidecar/build/dlss-n
 | [完整视频导出](example_workflows/dlss_native_process.json) | 原尺寸处理完整输入，连接原生 Save Video。 |
 | [NVIDIA 光流预览](example_workflows/dlss_nvidia_flow_preview.json) | 替换光流提供器，需要原生 NVOF helper。 |
 | [两套 Look 对比](example_workflows/dlss_compare_looks.json) | A/B 分别连接一套 NR Look，共用输入准备缓存。 |
+| [实验性 NR 处理链](example_workflows/dlss_pipeline_preview.json) | 独立输入组装、DIS/NVIDIA 惰性选择和串行 NR 阶段，见[处理链说明](docs/media-pipeline.zh-CN.md)。 |
+| [外部运动处理链](example_workflows/dlss_external_motion_preview.json) | 可选数值运动引导导入；提供真实清单前默认使用已配置 DIS。 |
+| [实验性 SR/DLAA](example_workflows/dlss_sr_experimental.json) | 需要真实设备深度清单与启用 SDK 的 `owned_sr` Worker 的接线模板，不是即导即用或已通过 GPU 验收的示例。 |
+| [Streamline 重建](example_workflows/dlss_reconstruction.json) | 显式渲染器数据包 + `owned_sl`／CXR1 + 原生 SaveVideo；SR／DLAA／RR／RR+DLAA 已通过有限合成场景 GPU/Comfy 验收，须自备完整数据包和运行时预设。 |
+| [VIDEO 接入 Streamline](example_workflows/dlss_streamline_video.json) | 统一输入 + 显式相机／深度 → Streamline SR/DLAA 阶段 → 处理链输出 → 保存视频；须提供匹配清单和 owned_sl 运行时。 |
 
 [示例说明](example_workflows/README.zh-CN.md)介绍接线、默认值与操作顺序。
 仓库不包含素材或专有 DLL；请将 `example-input.mp4` 换成自己的视频。
@@ -216,6 +244,7 @@ Windows 目标改为 `--target windows-x86_64`。输出为 `sidecar/build/dlss-n
 - [FFmpeg 依赖与路径](docs/media-tools.zh-CN.md)
 - [输入适配与色彩](docs/video-input-adapter.zh-CN.md)
 - [NVIDIA 光流](docs/nvidia-optical-flow.zh-CN.md)
+- [实验性 SR/DLAA 输入、运行时与构建](docs/super-resolution.zh-CN.md)
 - [性能、常驻与监控](docs/preview-performance.zh-CN.md)
 - [存储上限、流式处理与文件清理](docs/STORAGE.zh-CN.md)
 - [架构设计](docs/ARCHITECTURE.zh-CN.md) · [运行时角色与薄 shim 原则](docs/RUNTIME_ROLES.zh-CN.md) · [直接 NR 协议](docs/direct-nr-relay.zh-CN.md)

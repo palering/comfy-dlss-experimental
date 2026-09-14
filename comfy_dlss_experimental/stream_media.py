@@ -88,12 +88,17 @@ def prepared_frames(manifest, guides, cancelled):
     from av.video.reformatter import VideoReformatter
     from .media_clip import ClipRequest
     source = Path(manifest["source"])
+    if guides.motion_provider == "external" and file_hash(source) != manifest["source_sha256"]:
+        raise ValueError("Input source content changed after timing scan; external guides cannot be reused")
     request = ClipRequest(**manifest["request"])
     width, height = manifest["width"], manifest["height"]
     pipeline = manifest["color_pipeline"]
     reformatter = VideoReformatter()
     index = 0
-    with TemporalGuideGenerator(width, height, guides, cancelled=cancelled) as temporal:
+    source_identity = {"sha256": manifest["source_sha256"],
+                       "width": manifest["metadata"]["video"]["width"],
+                       "height": manifest["metadata"]["video"]["height"]}
+    with TemporalGuideGenerator(width, height, guides, cancelled=cancelled, source_identity=source_identity) as temporal:
         for frame, pts, visible in decoded(source, request, manifest["metadata"], cancelled):
             if index >= len(manifest["frames"]) or {"pts_ns": pts, "visible": visible} != manifest["frames"][index]:
                 raise ValueError("Input timing changed between scan and render")
@@ -105,7 +110,7 @@ def prepared_frames(manifest, guides, cancelled):
                 if pipeline["operation"] == "bt709_to_srgb":
                     color = convert_rgba8(color, pipeline["source_transfer"], pipeline["working_transfer"])
             with phase("optical_flow"):
-                motion, info = temporal.process(color)
+                motion, info = temporal.process(color, pts_ns=pts)
             yield color, motion, {"pts_ns": pts, "visible": visible, **info}
             index += 1
     if index != len(manifest["frames"]):
@@ -151,7 +156,10 @@ class StreamEncoder:
             command += ["-ss", f"{first:.9f}", "-i", manifest["source"]]
         command += ["-map", "0:v:0"]
         if audio:
-            command += ["-map", "1:a:0", "-c:a", "aac", "-b:a", "160k"]
+            # Trim decoded samples before AAC framing; -t alone can retain a
+            # full final audio frame beyond a short visible video interval.
+            # Preserve timestamps after -ss, including any source audio offset.
+            command += ["-map", "1:a:0", "-af", f"atrim=end={duration:.9f}", "-c:a", "aac", "-b:a", "160k"]
         command += ["-vf", color_filter, "-c:v", "libx264", "-preset", "fast", "-crf", "16", "-threads", "4",
                     "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", transfer,
                     "-t", f"{duration:.9f}", "-fs", str(allowance), "-map_metadata", "-1", "-movflags", "+faststart", str(self.partial)]

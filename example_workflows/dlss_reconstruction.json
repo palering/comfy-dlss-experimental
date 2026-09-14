@@ -1,0 +1,372 @@
+{
+  "id": "0e7e692c-117b-4b79-a0e6-4a1a0a105537",
+  "revision": 0,
+  "last_node_id": 4,
+  "last_link_id": 3,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "DLSSExperimentalReconstructionInput",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        420,
+        170
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "manifest_path",
+          "type": "STRING",
+          "widget": {
+            "name": "manifest_path"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "bundle",
+          "type": "DLSSE_RECONSTRUCTION_BUNDLE",
+          "links": [
+            1
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalReconstructionInput"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 2,
+      "type": "DLSSExperimentalRuntimeConfig",
+      "pos": [
+        0,
+        280
+      ],
+      "size": [
+        510,
+        730
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "backend",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "backend"
+          }
+        },
+        {
+          "name": "proton",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "proton"
+          }
+        },
+        {
+          "name": "linux_display_backend",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "linux_display_backend"
+          }
+        },
+        {
+          "name": "worker_policy",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "worker_policy"
+          }
+        },
+        {
+          "name": "runtime_preset",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "runtime_preset"
+          }
+        },
+        {
+          "name": "catalog",
+          "type": "DLSS5_RUNTIME_CATALOG",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "runtime",
+          "type": "DLSS5_RUNTIME",
+          "links": [
+            2
+          ]
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalRuntimeConfig"
+      },
+      "widgets_values": [
+        "owned_sl",
+        "auto",
+        "auto",
+        "isolated",
+        "runtime-presets/owned-sl.json",
+        false,
+        300,
+        "auto",
+        "proton",
+        ""
+      ],
+      "title": "SDK Worker required · 需要 SDK 版本 Worker"
+    },
+    {
+      "id": 3,
+      "type": "DLSSExperimentalReconstructionRender",
+      "pos": [
+        650,
+        30
+      ],
+      "size": [
+        500,
+        580
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "bundle",
+          "type": "DLSSE_RECONSTRUCTION_BUNDLE",
+          "link": 1
+        },
+        {
+          "name": "runtime",
+          "type": "DLSS5_RUNTIME",
+          "link": 2
+        },
+        {
+          "name": "feature",
+          "type": "COMBO",
+          "widget": {
+            "name": "feature"
+          },
+          "link": null
+        },
+        {
+          "name": "mode",
+          "type": "COMBO",
+          "widget": {
+            "name": "mode"
+          },
+          "link": null
+        },
+        {
+          "name": "output_width",
+          "type": "INT",
+          "widget": {
+            "name": "output_width"
+          },
+          "link": null
+        },
+        {
+          "name": "output_height",
+          "type": "INT",
+          "widget": {
+            "name": "output_height"
+          },
+          "link": null
+        },
+        {
+          "name": "start_frame",
+          "type": "INT",
+          "widget": {
+            "name": "start_frame"
+          },
+          "link": null
+        },
+        {
+          "name": "frame_count",
+          "type": "INT",
+          "widget": {
+            "name": "frame_count"
+          },
+          "link": null
+        },
+        {
+          "name": "history_frames",
+          "type": "INT",
+          "widget": {
+            "name": "history_frames"
+          },
+          "link": null
+        },
+        {
+          "name": "include_audio",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "include_audio"
+          },
+          "link": null
+        },
+        {
+          "name": "ffmpeg_path",
+          "type": "STRING",
+          "widget": {
+            "name": "ffmpeg_path"
+          },
+          "link": null
+        },
+        {
+          "name": "ffprobe_path",
+          "type": "STRING",
+          "widget": {
+            "name": "ffprobe_path"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": [
+            3
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalReconstructionRender"
+      },
+      "widgets_values": [
+        "sr",
+        "quality",
+        960,
+        540,
+        0,
+        1,
+        0,
+        true,
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 4,
+      "type": "SaveVideo",
+      "pos": [
+        1300,
+        30
+      ],
+      "size": [
+        320,
+        460
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 3
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        },
+        {
+          "name": "format",
+          "type": "COMFY_DYNAMICCOMBO_V3",
+          "widget": {
+            "name": "format"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveVideo"
+      },
+      "widgets_values": [
+        "DLSS/reconstruction",
+        "auto",
+        "auto"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      3,
+      0,
+      "DLSSE_RECONSTRUCTION_BUNDLE"
+    ],
+    [
+      2,
+      2,
+      0,
+      3,
+      1,
+      "DLSS5_RUNTIME"
+    ],
+    [
+      3,
+      3,
+      0,
+      4,
+      0,
+      "VIDEO"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        70,
+        60
+      ]
+    }
+  },
+  "version": 0.4
+}

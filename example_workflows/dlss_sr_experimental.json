@@ -1,0 +1,811 @@
+{
+  "id": "c4b89ef4-e85b-46bc-9cd3-30b69ece3789",
+  "revision": 0,
+  "last_node_id": 10,
+  "last_link_id": 10,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadVideo",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        290,
+        360
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "file",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "file"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadVideo"
+      },
+      "widgets_values": [
+        "example-input.mp4"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "DLSSExperimentalPrepareTemporalSequence",
+      "pos": [
+        380,
+        0
+      ],
+      "size": [
+        510,
+        760
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 1
+        },
+        {
+          "name": "settings",
+          "type": "DLSSE_TEMPORAL_SETTINGS",
+          "link": null
+        },
+        {
+          "name": "color_policy",
+          "type": "COMBO",
+          "widget": {
+            "name": "color_policy"
+          },
+          "link": null
+        },
+        {
+          "name": "assumed_transfer",
+          "type": "COMBO",
+          "widget": {
+            "name": "assumed_transfer"
+          },
+          "link": null
+        },
+        {
+          "name": "assumed_range",
+          "type": "COMBO",
+          "widget": {
+            "name": "assumed_range"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "sequence",
+          "type": "DLSSE_TEMPORAL_SEQUENCE",
+          "links": [
+            2,
+            3
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalPrepareTemporalSequence"
+      },
+      "widgets_values": [
+        "strict",
+        "bt709",
+        "tv",
+        true,
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 3,
+      "type": "DLSSExperimentalExternalGuide",
+      "pos": [
+        380,
+        650
+      ],
+      "size": [
+        480,
+        160
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "sequence",
+          "type": "DLSSE_TEMPORAL_SEQUENCE",
+          "link": 2
+        },
+        {
+          "name": "manifest_path",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "manifest_path"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "guide",
+          "type": "DLSS_GUIDE_PROVIDER",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalExternalGuide"
+      },
+      "widgets_values": [
+        "path/to/matching-device-depth/manifest.json"
+      ],
+      "title": "Required: numerical device depth · 必须填入匹配的设备深度"
+    },
+    {
+      "id": 4,
+      "type": "DLSSExperimentalDISFlow",
+      "pos": [
+        380,
+        1100
+      ],
+      "size": [
+        360,
+        260
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "preset",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "preset"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "flow_provider",
+          "type": "DLSSE_OPTICAL_FLOW_PROVIDER",
+          "links": [
+            5
+          ]
+        },
+        {
+          "name": "settings_json",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalDISFlow"
+      },
+      "widgets_values": [
+        "均衡 · Balanced"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "DLSSExperimentalInputAssembler",
+      "pos": [
+        820,
+        0
+      ],
+      "size": [
+        420,
+        620
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "sequence",
+          "type": "DLSSE_TEMPORAL_SEQUENCE",
+          "link": 3
+        },
+        {
+          "name": "flow_provider",
+          "type": "DLSSE_OPTICAL_FLOW_PROVIDER",
+          "link": 5
+        },
+        {
+          "name": "settings",
+          "type": "DLSSE_TEMPORAL_SETTINGS",
+          "link": null
+        },
+        {
+          "name": "external_motion",
+          "type": "DLSS_GUIDE_PROVIDER",
+          "link": null
+        },
+        {
+          "name": "depth",
+          "type": "DLSS_GUIDE_PROVIDER",
+          "link": 4
+        },
+        {
+          "name": "normals",
+          "type": "DLSS_GUIDE_PROVIDER",
+          "link": null
+        },
+        {
+          "name": "mask",
+          "type": "DLSS_GUIDE_PROVIDER",
+          "link": null
+        },
+        {
+          "name": "confidence",
+          "type": "DLSS_GUIDE_PROVIDER",
+          "link": null
+        },
+        {
+          "name": "motion_source",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "motion_source"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "pipeline",
+          "type": "DLSSE_MEDIA_PIPELINE",
+          "links": [
+            6
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalInputAssembler"
+      },
+      "widgets_values": [
+        "configured"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "DLSSExperimentalSRSettings",
+      "pos": [
+        820,
+        650
+      ],
+      "size": [
+        350,
+        330
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mode",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "mode"
+          }
+        },
+        {
+          "name": "preset",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "preset"
+          }
+        },
+        {
+          "name": "depth_inverted",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "depth_inverted"
+          }
+        },
+        {
+          "name": "auto_exposure",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "auto_exposure"
+          }
+        },
+        {
+          "name": "jitter_policy",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "jitter_policy"
+          }
+        },
+        {
+          "name": "motion_jittered",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "motion_jittered"
+          }
+        },
+        {
+          "name": "hdr",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "hdr"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "settings",
+          "type": "DLSSE_SR_SETTINGS",
+          "links": [
+            7
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalSRSettings"
+      },
+      "widgets_values": [
+        "Quality · 质量",
+        "Model default · 模型默认",
+        false,
+        true,
+        "Finished video: zero jitter · 成片零抖动",
+        false,
+        false
+      ]
+    },
+    {
+      "id": 7,
+      "type": "DLSSExperimentalSRStage",
+      "pos": [
+        1250,
+        0
+      ],
+      "size": [
+        350,
+        330
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pipeline",
+          "type": "DLSSE_MEDIA_PIPELINE",
+          "link": 6
+        },
+        {
+          "name": "settings",
+          "type": "DLSSE_SR_SETTINGS",
+          "link": 7
+        },
+        {
+          "name": "output_width",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "output_width"
+          }
+        },
+        {
+          "name": "output_height",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "output_height"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "pipeline",
+          "type": "DLSSE_MEDIA_PIPELINE",
+          "links": [
+            8
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalSRStage"
+      },
+      "widgets_values": [
+        1280,
+        720
+      ],
+      "title": "Experimental SR target · 按素材宽高比设置目标"
+    },
+    {
+      "id": 8,
+      "type": "DLSSExperimentalRuntimeConfig",
+      "pos": [
+        1250,
+        650
+      ],
+      "size": [
+        510,
+        730
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "backend",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "backend"
+          }
+        },
+        {
+          "name": "proton",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "proton"
+          }
+        },
+        {
+          "name": "linux_display_backend",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "linux_display_backend"
+          }
+        },
+        {
+          "name": "worker_policy",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "worker_policy"
+          }
+        },
+        {
+          "name": "runtime_preset",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "runtime_preset"
+          }
+        },
+        {
+          "name": "catalog",
+          "type": "DLSS5_RUNTIME_CATALOG",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "runtime",
+          "type": "DLSS5_RUNTIME",
+          "links": [
+            9
+          ]
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalRuntimeConfig"
+      },
+      "widgets_values": [
+        "owned_sr",
+        "auto",
+        "auto",
+        "isolated",
+        "runtime-presets/owned-sr.json",
+        false,
+        300,
+        "auto",
+        "proton",
+        ""
+      ],
+      "title": "SDK Worker required · 需要 SDK 版本 Worker"
+    },
+    {
+      "id": 9,
+      "type": "DLSSExperimentalPipelineRender",
+      "pos": [
+        1700,
+        0
+      ],
+      "size": [
+        350,
+        330
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pipeline",
+          "type": "DLSSE_MEDIA_PIPELINE",
+          "link": 8
+        },
+        {
+          "name": "runtime",
+          "type": "DLSS5_RUNTIME",
+          "link": 9
+        },
+        {
+          "name": "start_time",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "start_time"
+          }
+        },
+        {
+          "name": "duration",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "duration"
+          }
+        },
+        {
+          "name": "scale",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "scale"
+          }
+        },
+        {
+          "name": "contract",
+          "type": "DLSS5_RENDER_CONTRACT",
+          "link": null
+        },
+        {
+          "name": "process_to_end",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "process_to_end"
+          }
+        },
+        {
+          "name": "retain_prepared_cache",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "retain_prepared_cache"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": [
+            10
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalPipelineRender"
+      },
+      "widgets_values": [
+        0,
+        1,
+        100,
+        false,
+        false
+      ]
+    },
+    {
+      "id": 10,
+      "type": "SaveVideo",
+      "pos": [
+        2150,
+        0
+      ],
+      "size": [
+        320,
+        460
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 10
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        },
+        {
+          "name": "format",
+          "type": "COMFY_DYNAMICCOMBO_V3",
+          "widget": {
+            "name": "format"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveVideo"
+      },
+      "widgets_values": [
+        "video/DLSS_SR_experimental",
+        "auto",
+        "auto"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "VIDEO"
+    ],
+    [
+      2,
+      2,
+      0,
+      3,
+      0,
+      "DLSSE_TEMPORAL_SEQUENCE"
+    ],
+    [
+      3,
+      2,
+      0,
+      5,
+      0,
+      "DLSSE_TEMPORAL_SEQUENCE"
+    ],
+    [
+      4,
+      3,
+      0,
+      5,
+      4,
+      "DLSS_GUIDE_PROVIDER"
+    ],
+    [
+      5,
+      4,
+      0,
+      5,
+      1,
+      "DLSSE_OPTICAL_FLOW_PROVIDER"
+    ],
+    [
+      6,
+      5,
+      0,
+      7,
+      0,
+      "DLSSE_MEDIA_PIPELINE"
+    ],
+    [
+      7,
+      6,
+      0,
+      7,
+      1,
+      "DLSSE_SR_SETTINGS"
+    ],
+    [
+      8,
+      7,
+      0,
+      9,
+      0,
+      "DLSSE_MEDIA_PIPELINE"
+    ],
+    [
+      9,
+      8,
+      0,
+      9,
+      1,
+      "DLSS5_RUNTIME"
+    ],
+    [
+      10,
+      9,
+      0,
+      10,
+      0,
+      "VIDEO"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.48,
+      "offset": [
+        40,
+        40
+      ]
+    },
+    "experimental_prerequisites": [
+      "SDK-enabled CSR1 Worker + nvngx_dlss.dll + owned-sr runtime preset; not a prevalidated GPU workflow.",
+      "Provide a numerical device_z depth manifest matching VIDEO bytes, source view, dimensions and source-frame PTS. RGB/relative depth is not sufficient.",
+      "Example target is 1280x720: use a smaller 16:9 source or change target to its exact aspect ratio; DLAA mode keeps source size.",
+      "Normalize input to sRGB. Render only 1 second first. No full-video raw cache, SR preview or mixed NR/SR stages."
+    ]
+  },
+  "version": 0.4
+}

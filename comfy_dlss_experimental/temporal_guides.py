@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
-from .flow_provider import DISFlow, FlowProvider
+from .flow_provider import FlowProvider
+from .guide_providers import create_flow_estimator
 
 
 @dataclass(frozen=True)
@@ -17,10 +18,16 @@ class GuideSettings:
     consistency_pixels: float = 2.5
     motion_provider: str = "dis"
     flow: FlowProvider | None = None
+    external_motion: dict | None = None
 
     def validate(self):
-        if self.motion_provider not in ("dis", "zero", "nvidia"):
+        if self.motion_provider not in ("dis", "zero", "nvidia", "external"):
             raise ValueError("Unsupported motion provider")
+        if self.motion_provider == "external":
+            if not isinstance(self.external_motion, dict) or self.flow is not None:
+                raise ValueError("External motion requires its own manifest configuration, not an estimator")
+        elif self.external_motion is not None:
+            raise ValueError("External motion configuration requires external mode")
         if self.flow is not None:
             if not isinstance(self.flow, FlowProvider):
                 raise ValueError("Invalid flow provider configuration")
@@ -35,7 +42,8 @@ class GuideSettings:
 
 
 class TemporalGuideGenerator:
-    def __init__(self, width: int, height: int, settings: GuideSettings = GuideSettings(), *, cancelled=lambda: False):
+    def __init__(self, width: int, height: int, settings: GuideSettings = GuideSettings(), *, cancelled=lambda: False,
+                 source_identity=None):
         settings.validate()
         if not 64 <= width <= 7680 or not 64 <= height <= 4320:
             raise ValueError("unsupported guide dimensions")
@@ -47,15 +55,18 @@ class TemporalGuideGenerator:
         self.small_height = max(64, round(height * settings.analysis_scale))
         self.previous = None
         self.estimator = None
+        self.external = None
         self.closed = False
         yy, xx = np.mgrid[:self.small_height, :self.small_width].astype(np.float32)
         self.xx, self.yy = xx, yy
-        if settings.motion_provider == "dis":
-            self.estimator = DISFlow(settings.flow or FlowProvider())
-        elif settings.motion_provider == "nvidia":
-            from .nvidia_flow import NvidiaFlow
-            self.estimator = NvidiaFlow(self.small_width, self.small_height,
-                                        settings.flow or FlowProvider(kind="nvidia"), cancelled=cancelled)
+        if settings.motion_provider == "external":
+            from .external_motion import ExternalMotionReader
+            self.external = ExternalMotionReader(settings.external_motion, width, height, source_identity)
+        else:
+            self.estimator = create_flow_estimator(
+                settings.motion_provider, self.small_width, self.small_height,
+                settings.flow, cancelled=cancelled,
+            )
 
     def __enter__(self):
         return self
@@ -68,7 +79,7 @@ class TemporalGuideGenerator:
             self.estimator.close()
         self.closed = True
 
-    def process(self, rgba: bytes, *, force_reset: bool = False) -> tuple[bytes, dict]:
+    def process(self, rgba: bytes, *, force_reset: bool = False, pts_ns=None) -> tuple[bytes, dict]:
         if self.closed:
             raise RuntimeError("Guide generator is closed")
         cv, np = self.cv, self.np
@@ -78,6 +89,8 @@ class TemporalGuideGenerator:
         gray = cv.cvtColor(image, cv.COLOR_RGBA2GRAY)
         current = cv.resize(gray, (self.small_width, self.small_height), interpolation=cv.INTER_AREA)
         first = self.previous is None
+        external_motion, external_info = self.external.read(pts_ns) if self.external is not None else (None, {})
+        force_reset = force_reset or bool(external_info.get("reset"))
         scene_score = 0.0 if first else float(cv.absdiff(current, self.previous).mean()) / 255
         cut = not first and scene_score >= self.settings.scene_cut_threshold
         reset = first or force_reset or cut
@@ -86,12 +99,19 @@ class TemporalGuideGenerator:
                    "unwarped_mae": None, "warped_mae": None, "negated_flow_mae": None}
         metrics["motion_provider"] = self.settings.motion_provider
         metrics["analysis_width"], metrics["analysis_height"] = self.small_width, self.small_height
+        if self.external is not None:
+            metrics["external_guide"] = external_info
         if reset and self.estimator is not None:
             self.estimator.reset()
         if reset or self.settings.motion_provider == "zero":
             motion = np.zeros((self.height, self.width, 2), np.float32)
             if not reset:
                 metrics["consistent_fraction"] = None  # No estimation was performed.
+        elif self.external is not None:
+            motion = external_motion
+            # No backward/forward consistency claim without a reverse field.
+            metrics["consistent_fraction"] = None
+            metrics["motion_p95_pixels"] = float(np.percentile(np.linalg.norm(motion, axis=2), 95))
         else:
             backward, forward = self.estimator.estimate(current, self.previous)
             expected = (self.small_height, self.small_width, 2)

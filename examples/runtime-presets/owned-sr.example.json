@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "owned-sr-experimental",
+  "backend": "owned_sr",
+  "components": {
+    "worker": "../components/owned-sr/comfy-dlss-worker.exe",
+    "nvngx_dlss": "../components/owned-sr/nvngx_dlss.dll"
+  },
+  "compatibility": {
+    "project_id": "f11d0944-2512-4ea1-a5a7-f7ee4987f3f5",
+    "notes": "Requires an SDK-enabled Worker, not the NR-only Zig helper. Project UUID identifies this experimental integration, not NVIDIA certification. Runtime handshake and GPU acceptance remain required. No caller shim."
+  }
+}

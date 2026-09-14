@@ -243,16 +243,23 @@ def managed_job(function):
     def call(**kwargs):
         from .config import data_root
         from .execution_log import current_trace
-        import folder_paths
-        root, temp = data_root(), Path(folder_paths.get_temp_directory())
+        from .execution_context import current_execution_context
+        context = current_execution_context()
+        if context is None:
+            import folder_paths
+            temp = Path(folder_paths.get_temp_directory())
+        else:
+            temp = context.temp_root
+        root = data_root()
         with LOCK:
             policy = settings(root)
             used = tree_size(temp / "dlss-experimental")
-            reserved = sum(s["budget"] for s in _jobs.values())
+            reserved = sum(s["budget"] for s in _jobs.values() if s["temp_root"] == temp.resolve())
             budget = policy["job_gib"] * GiB
             if used + reserved + budget > policy["temporary_gib"] * GiB:
                 raise ValueError("DLSS temporary storage quota reached. Save needed results, then remove old jobs in DLSS Storage Manager.")
-            state = {"path": None, "budget": budget, "settings": policy, "peak_bytes": 0}
+            state = {"path": None, "budget": budget, "settings": policy, "peak_bytes": 0,
+                     "temp_root": temp.resolve()}
             _jobs[id(state)] = state
         token = _current.set(state)
         try:

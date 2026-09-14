@@ -11,8 +11,20 @@ from .sequence_hub import DLSSExperimentalSequenceHub
 from .storage import DLSSExperimentalStorageManager
 from .temporal import DLSSExperimentalPrepareTemporalSequence, DLSSExperimentalTemporalSettings
 from .optical_flow import DLSSExperimentalDISFlow, DLSSExperimentalNVIDIAFlow
+from .media_pipeline import DLSSExperimentalFlowSelector, DLSSExperimentalInputAssembler, DLSSExperimentalNRStage
+from .pipeline_output import DLSSExperimentalPipelinePreview, DLSSExperimentalPipelineRender
+from .external_guides import DLSSExperimentalExternalGuide, DLSSExperimentalGuideSelector
+from .super_resolution import DLSSExperimentalSRSettings, DLSSExperimentalSRPlan, DLSSExperimentalSRStage
+from .reconstruction import DLSSExperimentalReconstructionInput, DLSSExperimentalReconstructionRender
+from .streamline import DLSSExperimentalCameraInput, DLSSExperimentalStreamlineStage
 
 __all__ = [
+    "DLSSExperimentalCameraInput", "DLSSExperimentalStreamlineStage",
+    "DLSSExperimentalReconstructionInput", "DLSSExperimentalReconstructionRender",
+    "DLSSExperimentalExternalGuide", "DLSSExperimentalGuideSelector",
+    "DLSSExperimentalSRSettings", "DLSSExperimentalSRPlan", "DLSSExperimentalSRStage",
+    "DLSSExperimentalFlowSelector", "DLSSExperimentalInputAssembler", "DLSSExperimentalNRStage",
+    "DLSSExperimentalPipelinePreview", "DLSSExperimentalPipelineRender",
     "DLSSExperimentalDISFlow", "DLSSExperimentalNVIDIAFlow",
     "DLSSExperimentalRuntimeProbe",
     "DLSSExperimentalRuntimeConfig",

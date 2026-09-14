@@ -5,8 +5,9 @@ import { api } from "../../scripts/api.js";
 import { acceptSession, previewRequest, previewRangeDuration } from "./preview_state.js";
 import { copyDiagnosticText, formatPreviewDiagnostics } from "./preview_diagnostics.js";
 import { previewOutputNotice, previewParameterHelp } from "./preview_help.js";
+import { decodeDiagnosticReport } from "./diagnostic_report.js";
 
-const PREVIEW_NODE = "DLSSExperimentalPreviewSession";
+const PREVIEW_NODES = new Set(["DLSSExperimentalPreviewSession", "DLSSExperimentalPipelinePreview"]);
 const cards = new Set();
 
 function element(tag, className, text) {
@@ -263,6 +264,7 @@ function attach(node) {
       empty.hidden = false;
     },
     apply(payload) {
+      payload = decodeDiagnosticReport(payload);
       if (!acceptSession(state.session, payload, node.id, workflowId(node))) return;
       const changed = payload.session_id !== state.session?.session_id;
       state.session = payload;
@@ -404,7 +406,7 @@ function attach(node) {
 }
 app.registerExtension({
   name: "comfy-dlss-experimental.preview",
-  nodeCreated(node) { if ((node.comfyClass || node.type) === PREVIEW_NODE) attach(node); },
+  nodeCreated(node) { if (PREVIEW_NODES.has(node.comfyClass || node.type)) attach(node); },
   setup() {
     stylesheet();
     api.addEventListener("dlss.experimental.preview_session", (event) => {

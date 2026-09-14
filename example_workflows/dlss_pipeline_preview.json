@@ -1,0 +1,1032 @@
+{
+  "id": "27e00cb4-7a8b-4edc-a063-5c95e5aa80bf",
+  "revision": 0,
+  "last_node_id": 13,
+  "last_link_id": 13,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadVideo",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        290,
+        360
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "file",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "file"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadVideo"
+      },
+      "widgets_values": [
+        "example-input.mp4"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "DLSSExperimentalTemporalSettings",
+      "pos": [
+        410,
+        1200
+      ],
+      "size": [
+        320,
+        230
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "analysis_scale",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "analysis_scale"
+          }
+        },
+        {
+          "name": "scene_cut_threshold",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "scene_cut_threshold"
+          }
+        },
+        {
+          "name": "consistency_tolerance",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "consistency_tolerance"
+          }
+        },
+        {
+          "name": "motion_provider",
+          "type": "COMBO",
+          "widget": {
+            "name": "motion_provider"
+          },
+          "link": null
+        },
+        {
+          "name": "flow_provider",
+          "type": "DLSSE_OPTICAL_FLOW_PROVIDER",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "settings",
+          "type": "DLSSE_TEMPORAL_SETTINGS",
+          "links": [
+            5
+          ]
+        },
+        {
+          "name": "settings_json",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalTemporalSettings"
+      },
+      "widgets_values": [
+        50,
+        0.35,
+        2.5,
+        "dis"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "DLSSExperimentalPrepareTemporalSequence",
+      "pos": [
+        400,
+        0
+      ],
+      "size": [
+        510,
+        760
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 1
+        },
+        {
+          "name": "settings",
+          "type": "DLSSE_TEMPORAL_SETTINGS",
+          "link": null
+        },
+        {
+          "name": "color_policy",
+          "type": "COMBO",
+          "widget": {
+            "name": "color_policy"
+          },
+          "link": null
+        },
+        {
+          "name": "assumed_transfer",
+          "type": "COMBO",
+          "widget": {
+            "name": "assumed_transfer"
+          },
+          "link": null
+        },
+        {
+          "name": "assumed_range",
+          "type": "COMBO",
+          "widget": {
+            "name": "assumed_range"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "sequence",
+          "type": "DLSSE_TEMPORAL_SEQUENCE",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalPrepareTemporalSequence"
+      },
+      "widgets_values": [
+        "strict",
+        "bt709",
+        "tv",
+        false,
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 4,
+      "type": "DLSSExperimentalRuntimeConfig",
+      "pos": [
+        990,
+        0
+      ],
+      "size": [
+        510,
+        730
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "backend",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "backend"
+          }
+        },
+        {
+          "name": "proton",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "proton"
+          }
+        },
+        {
+          "name": "linux_display_backend",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "linux_display_backend"
+          }
+        },
+        {
+          "name": "worker_policy",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "worker_policy"
+          }
+        },
+        {
+          "name": "runtime_preset",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "runtime_preset"
+          }
+        },
+        {
+          "name": "catalog",
+          "type": "DLSS5_RUNTIME_CATALOG",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "runtime",
+          "type": "DLSS5_RUNTIME",
+          "links": [
+            12
+          ]
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalRuntimeConfig"
+      },
+      "widgets_values": [
+        "direct_nr",
+        "auto",
+        "auto",
+        "isolated",
+        "runtime-presets/default.json",
+        false,
+        300,
+        "auto",
+        "proton",
+        ""
+      ]
+    },
+    {
+      "id": 5,
+      "type": "DLSSExperimentalNRProfile",
+      "pos": [
+        1450,
+        0
+      ],
+      "size": [
+        390,
+        510
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "nr_enabled",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "nr_enabled"
+          }
+        },
+        {
+          "name": "intensity",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "intensity"
+          }
+        },
+        {
+          "name": "mix",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "mix"
+          }
+        },
+        {
+          "name": "nr_preset",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "nr_preset"
+          }
+        },
+        {
+          "name": "nr_style",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "nr_style"
+          }
+        },
+        {
+          "name": "local_tone_strength",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "local_tone_strength"
+          }
+        },
+        {
+          "name": "local_structure_strength",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "local_structure_strength"
+          }
+        },
+        {
+          "name": "skin_structure_strength",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "skin_structure_strength"
+          }
+        },
+        {
+          "name": "automatic_mask",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "automatic_mask"
+          }
+        },
+        {
+          "name": "ui_correction",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "ui_correction"
+          }
+        },
+        {
+          "name": "worker_profile",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "worker_profile"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "profile",
+          "type": "DLSS5_NR_PROFILE",
+          "links": [
+            8,
+            10
+          ]
+        },
+        {
+          "name": "profile_json",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalNRProfile"
+      },
+      "widgets_values": [
+        true,
+        0.25,
+        1,
+        "模型默认（建议）",
+        "自然 · Natural",
+        1,
+        1,
+        -1,
+        false,
+        false,
+        "当前兼容配置（建议）"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "DLSSExperimentalPipelinePreview",
+      "pos": [
+        2360,
+        0
+      ],
+      "size": [
+        700,
+        1000
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pipeline",
+          "type": "DLSSE_MEDIA_PIPELINE",
+          "link": 11
+        },
+        {
+          "name": "runtime",
+          "type": "DLSS5_RUNTIME",
+          "link": 12
+        },
+        {
+          "name": "start_time",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "start_time"
+          }
+        },
+        {
+          "name": "duration",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "duration"
+          }
+        },
+        {
+          "name": "preview_scale",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "preview_scale"
+          }
+        },
+        {
+          "name": "profile_a",
+          "type": "DLSS5_NR_PROFILE",
+          "link": null
+        },
+        {
+          "name": "contract",
+          "type": "DLSS5_RENDER_CONTRACT",
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "name": "session",
+          "type": "DLSS5_PREVIEW_SESSION",
+          "links": []
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": []
+        },
+        {
+          "name": "video_b",
+          "type": "VIDEO",
+          "links": []
+        },
+        {
+          "name": "video_a",
+          "type": "VIDEO",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalPipelinePreview"
+      },
+      "widgets_values": [
+        0,
+        3,
+        50,
+        "frame",
+        0,
+        false,
+        true
+      ]
+    },
+    {
+      "id": 7,
+      "type": "DLSSExperimentalNVIDIAFlow",
+      "pos": [
+        0,
+        1450
+      ],
+      "size": [
+        365,
+        230
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "preset",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "preset"
+          }
+        },
+        {
+          "name": "output_grid",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "output_grid"
+          }
+        },
+        {
+          "name": "temporal_hints",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "temporal_hints"
+          }
+        },
+        {
+          "name": "device",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "device"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "flow_provider",
+          "type": "DLSSE_OPTICAL_FLOW_PROVIDER",
+          "links": [
+            3
+          ]
+        },
+        {
+          "name": "settings_json",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalNVIDIAFlow"
+      },
+      "widgets_values": [
+        "均衡 · Balanced",
+        "4 × 4（较省资源）",
+        true,
+        0
+      ]
+    },
+    {
+      "id": 8,
+      "type": "DLSSExperimentalRenderContract",
+      "pos": [
+        1910,
+        0
+      ],
+      "size": [
+        380,
+        180
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "warmup_frames",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "warmup_frames"
+          }
+        },
+        {
+          "name": "pre_roll",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "pre_roll"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "contract",
+          "type": "DLSS5_RENDER_CONTRACT",
+          "links": [
+            13
+          ]
+        },
+        {
+          "name": "contract_json",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalRenderContract"
+      },
+      "widgets_values": [
+        120,
+        0.5
+      ]
+    },
+    {
+      "id": 9,
+      "type": "DLSSExperimentalDISFlow",
+      "pos": [
+        0,
+        1050
+      ],
+      "size": [
+        360,
+        260
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "preset",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "preset"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "flow_provider",
+          "type": "DLSSE_OPTICAL_FLOW_PROVIDER",
+          "links": [
+            2
+          ]
+        },
+        {
+          "name": "settings_json",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalDISFlow"
+      },
+      "widgets_values": [
+        "均衡 · Balanced"
+      ]
+    },
+    {
+      "id": 10,
+      "type": "DLSSExperimentalFlowSelector",
+      "pos": [
+        410,
+        950
+      ],
+      "size": [
+        360,
+        260
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "selection",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "selection"
+          }
+        },
+        {
+          "name": "a",
+          "type": "DLSSE_OPTICAL_FLOW_PROVIDER",
+          "link": 2
+        },
+        {
+          "name": "b",
+          "type": "DLSSE_OPTICAL_FLOW_PROVIDER",
+          "link": 3
+        },
+        {
+          "name": "c",
+          "type": "DLSSE_OPTICAL_FLOW_PROVIDER",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "flow_provider",
+          "type": "DLSSE_OPTICAL_FLOW_PROVIDER",
+          "links": [
+            6
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalFlowSelector"
+      },
+      "widgets_values": [
+        "a"
+      ]
+    },
+    {
+      "id": 11,
+      "type": "DLSSExperimentalInputAssembler",
+      "pos": [
+        990,
+        480
+      ],
+      "size": [
+        420,
+        620
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "sequence",
+          "type": "DLSSE_TEMPORAL_SEQUENCE",
+          "link": 4
+        },
+        {
+          "name": "flow_provider",
+          "type": "DLSSE_OPTICAL_FLOW_PROVIDER",
+          "link": 6
+        },
+        {
+          "name": "settings",
+          "type": "DLSSE_TEMPORAL_SETTINGS",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "pipeline",
+          "type": "DLSSE_MEDIA_PIPELINE",
+          "links": [
+            7
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalInputAssembler"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 12,
+      "type": "DLSSExperimentalNRStage",
+      "pos": [
+        1460,
+        480
+      ],
+      "size": [
+        420,
+        620
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pipeline",
+          "type": "DLSSE_MEDIA_PIPELINE",
+          "link": 7
+        },
+        {
+          "name": "profile",
+          "type": "DLSS5_NR_PROFILE",
+          "link": 8
+        },
+        {
+          "name": "enabled",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "enabled"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "pipeline",
+          "type": "DLSSE_MEDIA_PIPELINE",
+          "links": [
+            9
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalNRStage"
+      },
+      "widgets_values": [
+        true
+      ]
+    },
+    {
+      "id": 13,
+      "type": "DLSSExperimentalNRStage",
+      "pos": [
+        1910,
+        480
+      ],
+      "size": [
+        420,
+        620
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pipeline",
+          "type": "DLSSE_MEDIA_PIPELINE",
+          "link": 9
+        },
+        {
+          "name": "profile",
+          "type": "DLSS5_NR_PROFILE",
+          "link": 10
+        },
+        {
+          "name": "enabled",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "enabled"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "pipeline",
+          "type": "DLSSE_MEDIA_PIPELINE",
+          "links": [
+            11
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DLSSExperimentalNRStage"
+      },
+      "widgets_values": [
+        false
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      3,
+      0,
+      "VIDEO"
+    ],
+    [
+      2,
+      9,
+      0,
+      10,
+      1,
+      "DLSSE_OPTICAL_FLOW_PROVIDER"
+    ],
+    [
+      3,
+      7,
+      0,
+      10,
+      2,
+      "DLSSE_OPTICAL_FLOW_PROVIDER"
+    ],
+    [
+      4,
+      3,
+      0,
+      11,
+      0,
+      "DLSSE_TEMPORAL_SEQUENCE"
+    ],
+    [
+      5,
+      2,
+      0,
+      11,
+      2,
+      "DLSSE_TEMPORAL_SETTINGS"
+    ],
+    [
+      6,
+      10,
+      0,
+      11,
+      1,
+      "DLSSE_OPTICAL_FLOW_PROVIDER"
+    ],
+    [
+      7,
+      11,
+      0,
+      12,
+      0,
+      "DLSSE_MEDIA_PIPELINE"
+    ],
+    [
+      8,
+      5,
+      0,
+      12,
+      1,
+      "DLSS5_NR_PROFILE"
+    ],
+    [
+      9,
+      12,
+      0,
+      13,
+      0,
+      "DLSSE_MEDIA_PIPELINE"
+    ],
+    [
+      10,
+      5,
+      0,
+      13,
+      1,
+      "DLSS5_NR_PROFILE"
+    ],
+    [
+      11,
+      13,
+      0,
+      6,
+      0,
+      "DLSSE_MEDIA_PIPELINE"
+    ],
+    [
+      12,
+      4,
+      0,
+      6,
+      1,
+      "DLSS5_RUNTIME"
+    ],
+    [
+      13,
+      8,
+      0,
+      6,
+      6,
+      "DLSS5_RENDER_CONTRACT"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.5,
+      "offset": [
+        60,
+        60
+      ]
+    }
+  },
+  "version": 0.4
+}

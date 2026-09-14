@@ -60,6 +60,11 @@ def _selected_flow(sequence: dict | None, flow_provider: dict | None) -> tuple[F
                 sequence_value = FlowProvider(kind=settings["motion_provider"])
             elif settings.get("motion_provider") == "zero":
                 return None, warnings
+            elif settings.get("motion_provider") == "external":
+                from .external_guides import reopen_external_guide
+                external = reopen_external_guide(settings.get("external_motion"))
+                external.validate_nr_motion()
+                return external, warnings
     explicit = FlowProvider.from_payload(flow_provider) if flow_provider is not None else None
     if sequence_value and explicit and sequence_value != explicit:
         warnings.append("The separately connected flow provider differs from the Video Input Adapter settings; the video sequence wins.")
@@ -74,7 +79,11 @@ def inspect_setup(
     verify_nvidia_flow: bool = False,
     include_diagnostics: bool = False,
 ) -> dict[str, Any]:
-    """Inspect files and host dependencies without launching the NR Worker/model."""
+    """Inspect files and host dependencies without launching NR/SR Workers/models.
+
+    A successful SR report establishes file/host readiness only. The CSR1 SDK
+    capability handshake, actual input planes and GPU support remain untested.
+    """
 
     from datetime import datetime, timezone
 
@@ -105,8 +114,18 @@ def inspect_setup(
         add("runtime", "Runtime configuration / 运行时配置", "fail", "; ".join(runtime_errors) or "Runtime Configuration reported not ready.")
     add("host", "Host platform / 宿主平台", "pass" if selected == host and host in {"linux", "windows"} else "fail",
         f"selected={selected}; actual={host}")
-    if runtime.get("backend") == "direct_nr":
-        add("backend", "Execution backend / 执行后端", "pass", "direct_nr is the currently implemented video backend.")
+    backend = runtime.get("backend")
+    owned = backend in {"owned_nr", "owned_sr", "owned_sl"}
+    is_sr = backend == "owned_sr"
+    is_sl = backend == "owned_sl"
+    descriptions = {
+        "direct_nr": "direct_nr: external video Worker, D5V2.",
+        "owned_nr": "owned_nr: project Worker + thin caller, CNR1; experimental, GPU acceptance is separate.",
+        "owned_sr": "owned_sr: SDK-built project Worker + nvngx_dlss.dll, CSR1; no NR caller shim or NR model is used.",
+        "owned_sl": "owned_sl: separate CXR1 reconstruction Worker + complete Streamline SR/RR runtime; explicit renderer bundle inputs.",
+    }
+    if backend in descriptions:
+        add("backend", "Execution backend / 执行后端", "pass", descriptions[backend])
     else:
         add("backend", "Execution backend / 执行后端", "fail", f"{runtime.get('backend')} is not implemented for Preview/Process Video.")
     expected_mode = {"linux": "linux_proton", "windows": "windows_native"}.get(host)
@@ -116,12 +135,14 @@ def inspect_setup(
 
     components = runtime.get("components") if isinstance(runtime.get("components"), dict) else {}
     expected_hashes = runtime.get("component_hashes") if isinstance(runtime.get("component_hashes"), dict) else {}
-    required_roles = {"relay", "worker", "nvngx_dlssnr"}
+    from .sl_runtime import SL_COMPONENTS
+    required_roles = (set(SL_COMPONENTS) if is_sl else {"worker", "nvngx_dlss"} if is_sr else
+                      {"caller" if owned else "relay", "worker", "nvngx_dlssnr"})
     actual_roles = set(components)
     add("component_roles", "Component roles / 组件角色", "pass" if actual_roles == required_roles else "fail",
-        f"selected={', '.join(sorted(actual_roles)) or 'none'}; required=relay, worker, nvngx_dlssnr")
+        f"selected={', '.join(sorted(actual_roles)) or 'none'}; required={', '.join(sorted(required_roles))}")
     component_report: dict[str, Any] = {}
-    for role in ("relay", "worker", "nvngx_dlssnr"):
+    for role in sorted(required_roles):
         raw = components.get(role)
         item: dict[str, Any] = {"path": raw, "present": False}
         component_report[role] = item
@@ -152,13 +173,65 @@ def inspect_setup(
         if component_report.get(role, {}).get("sha256_match") else ""
         for role in ("worker", "nvngx_dlssnr")
     )
-    pair_name = KNOWN_RUNTIME_PAIRS.get(pair_key)
+    pair_name = None if owned else KNOWN_RUNTIME_PAIRS.get(pair_key)
     if pair_name:
         add("runtime_pair", "Worker/model pair / Worker 与模型配对", "pass", pair_name)
     elif components:
         add("runtime_pair", "Worker/model pair / Worker 与模型配对", "warn",
             "Files are present and hash-stable, but this exact pair is not in the project's validated-pair registry.")
     report["runtime_pair"] = pair_name or "unrecognized"
+
+    if is_sr:
+        from .sr_runtime import project_id, validate_sr_runtime
+
+        report["readiness_scope"] = "files_and_host_dependencies_only"
+        report["sr_validation"] = {
+            "protocol": "CSR1", "sdk_compiled": "not_checked",
+            "input_planes": "not_checked", "gpu": "not_executed",
+            "runtime_pair": "not_validated", "execution_readiness": "not_established",
+        }
+        policy = runtime.get("worker_policy", "isolated")
+        add("sr_worker_policy", "SR Worker lifecycle / SR Worker 生命周期",
+            "pass" if policy == "isolated" else "fail",
+            "SR uses an isolated Worker released after each task." if policy == "isolated"
+            else "SR requires isolated Worker mode; disable keep_worker_alive.")
+        compatibility = runtime.get("compatibility")
+        try:
+            value = project_id(compatibility.get("project_id") if isinstance(compatibility, dict) else None)
+            add("sr_project_id", "SR NGX project UUID / SR NGX 项目 UUID", "pass",
+                f"Canonical nonzero project UUID configured: {value}")
+        except ValueError as exc:
+            add("sr_project_id", "SR NGX project UUID / SR NGX 项目 UUID", "fail", str(exc))
+        try:
+            # Revalidate the execution contract rather than trusting a caller's
+            # ready flag. Malformed compatibility/roles are handled above.
+            validate_sr_runtime(runtime)
+            add("sr_runtime_contract", "SR runtime contract / SR 运行时约定", "pass",
+                "SR role set, isolated lifecycle, project UUID and runtime fingerprint are consistent.")
+        except (ValueError, TypeError, AttributeError) as exc:
+            add("sr_runtime_contract", "SR runtime contract / SR 运行时约定", "fail", str(exc))
+        add("sr_capabilities", "SR compiled/GPU capability / SR 编译与 GPU 能力", "warn",
+            "PE files and SHA-256 matches do not prove SR support. Execution must complete a CSR1 handshake "
+            "confirming SDK-compiled SR/DLAA capabilities, then check driver/runtime support and NGX optimal settings. "
+            "This helper does not start a Worker, load NGX or run the GPU.")
+        add("sr_inputs", "SR frame inputs / SR 帧输入", "warn",
+            "This dependency check does not validate SR depth planes, timestamps, projection calibration or color conversion. "
+            "Use SR Input Check and SR Render validation; optical flow alone is not sufficient for SR.")
+
+    if is_sl:
+        from .sl_runtime import validate_sl_runtime
+        report["readiness_scope"] = "files_and_host_dependencies_only"
+        report["sl_validation"] = {"protocol": "CXR1", "compiled_features": "not_checked",
+            "input_bundle": "not_checked", "gpu": "not_executed", "foreground_required": False}
+        try:
+            validate_sl_runtime(runtime)
+            add("sl_runtime_contract", "Reconstruction runtime / 重建运行库", "pass",
+                "Explicit CXR1 roles, project UUID and isolated lifecycle are consistent.")
+        except (ValueError, TypeError, AttributeError) as exc:
+            add("sl_runtime_contract", "Reconstruction runtime / 重建运行库", "fail", str(exc))
+        add("sl_capabilities", "Reconstruction execution / 重建执行", "warn",
+            "Files/host readiness is not GPU acceptance. Reconstruction Render must complete the CXR1 handshake "
+            "and actual SR/DLAA/RR initialization/evaluation. No Worker is launched by this helper.")
 
     tools_config = {}
     if isinstance(sequence, dict) and isinstance(sequence.get("media_tools_config"), dict):
@@ -170,15 +243,16 @@ def inspect_setup(
         add(name, name, "pass" if item["available"] else "fail",
             f"{item.get('version', item.get('error', 'unavailable'))}; source={item.get('source')}", path=item.get("path"))
 
-    packages = {
+    packages = {"numpy": _package("numpy")} if is_sl else {
         "numpy": _package("numpy"),
         "av": _package("av"),
         "PIL": _package("PIL", "Pillow", import_module=True),
         "cv2": _package("cv2", "opencv-python", import_module=True),
     }
     try:
-        cv2 = importlib.import_module("cv2") if packages["cv2"]["available"] else None
-        packages["cv2"]["dis_available"] = bool(cv2 and hasattr(cv2, "DISOpticalFlow_create"))
+        cv2 = importlib.import_module("cv2") if not is_sl and packages["cv2"]["available"] else None
+        if not is_sl:
+            packages["cv2"]["dis_available"] = bool(cv2 and hasattr(cv2, "DISOpticalFlow_create"))
     except (ImportError, OSError) as exc:
         packages["cv2"].update(available=False, dis_available=False, error=str(exc))
     report["python_packages"] = packages
@@ -187,12 +261,20 @@ def inspect_setup(
             str(item.get("version") or item.get("loaded_version") or item.get("error") or "installed"))
 
     try:
-        flow, flow_warnings = _selected_flow(sequence, flow_provider)
+        flow, flow_warnings = (None, []) if is_sl else _selected_flow(sequence, flow_provider)
         for warning in flow_warnings:
             add("flow_mismatch", "Optical flow / 光流", "warn", warning)
-        if flow is None:
+        if is_sl:
+            report["flow"] = {"kind": "renderer_bundle", "estimated": False}
+            add("flow", "Renderer motion / 渲染运动场", "pass",
+                "CXR1 bundle supplies explicit numerical motion; no DIS or NVOF estimator is required or launched.")
+        elif flow is None:
             report["flow"] = {"kind": "zero"}
             add("flow", "Optical flow / 光流", "warn", "Zero-vector diagnostic mode selected; no optical-flow dependency is used.")
+        elif hasattr(flow, "cache_identity"):
+            report["flow"] = {**flow.report(), "kind": "external"}
+            add("flow", "External motion / 外部运动场", "pass",
+                "Manifest identity and motion semantics validated; frame hashes and source PTS are checked during rendering. No estimator is launched.")
         elif flow.kind == "dis":
             report["flow"] = {"kind": "dis", "preset": flow.preset}
             available = bool(packages["cv2"].get("dis_available"))
@@ -242,7 +324,11 @@ def inspect_setup(
     elif host == "windows":
         add("native_execution", "Native Windows execution / Windows 原生执行", "pass", "Proton and Xwayland are not used.")
 
-    if sequence is None:
+    if is_sl:
+        add("sequence", "Renderer bundle / 渲染数据包", "warn",
+            "Use Reconstruction Bundle Input for camera/depth/material metadata, then Reconstruction Render. "
+            "This helper does not validate bundle pixels, geometry or timing; ordinary VIDEO/NR guides are not substitutes.")
+    elif sequence is None:
         add("sequence", "Video input configuration / 视频输入配置", "warn",
             "Video Input Adapter is not connected; PATH/default DIS were checked, but its custom media paths and selected guide settings were not.")
     else:

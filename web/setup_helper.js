@@ -2,7 +2,8 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { t, bindText, disposeTranslations, onLocaleChange } from "./i18n.js";
 import { copyDiagnosticText } from "./preview_diagnostics.js";
-import { previewPrompt } from "./preview_state.js";
+import { createInspectionTask, inspectionMessage } from "./inspection_task.mjs?v=1";
+import { decodeDiagnosticReport } from "./diagnostic_report.js";
 
 const NODE = "DLSSExperimentalSetupHelper";
 
@@ -35,7 +36,8 @@ app.registerExtension({
     installStyle();
     const root = element("section", "dlss-setup-card");
     const header = element("header");
-    const status = element("strong", "dlss-setup-status", () => t("尚未检查"));
+    const status = element("strong", "dlss-setup-status", t("尚未检查"));
+    status.setAttribute("role", "status");
     const counts = element("span", "dlss-setup-counts");
     header.append(status, counts);
     const actions = element("div", "dlss-setup-actions");
@@ -57,11 +59,14 @@ app.registerExtension({
     root.addEventListener("pointerdown", event => event.stopPropagation());
     root.addEventListener("wheel", event => event.stopPropagation());
 
-    let report = null;
+    let report = null, dirty = false;
     let removed = false;
     function show(value) {
+      value = decodeDiagnosticReport(value);
       if (!value || removed) return;
       report = value;
+      dirty = false;
+      list.hidden = false;
       node.properties ||= {};
       node.properties.dlss_setup_report = value;
       status.textContent = statusText(value);
@@ -82,20 +87,15 @@ app.registerExtension({
       copy.disabled = false;
     }
 
-    run.onclick = async () => {
-      run.disabled = true;
-      status.textContent = t("检查排队中");
-      try {
-        const graph = await app.graphToPrompt();
-        if (!Object.hasOwn(graph.output, String(node.id))) throw new Error(t("子图内部请使用 Comfy 执行到所选节点。"));
-        await api.queuePrompt(0, { workflow: graph.workflow, output: previewPrompt(graph.output, node.id) });
-      } catch (error) {
-        status.textContent = t("提交失败");
-        counts.textContent = error.message || String(error);
-      } finally {
-        run.disabled = false;
-      }
-    };
+    const task = createInspectionTask({api, app, node, reportKeys: ["dlss_setup_report"], onReport: show,
+      onState(value) {
+        run.disabled = value.busy;
+        if (value.kind === "reported") return;
+        status.textContent = inspectionMessage(value); delete status.dataset.ready;
+        copy.disabled = true;
+        list.hidden = !!report; counts.textContent = report ? t("旧报告已隐藏，不代表本次检查结果。") : "";
+      }});
+    run.onclick = () => task.submit();
     copy.onclick = async () => {
       if (!report) return;
       copyText.hidden = true;
@@ -114,7 +114,7 @@ app.registerExtension({
     node.setSize([Math.max(node.size[0], 500), Math.max(node.size[1], 560)]);
     const executed = node.onExecuted;
     node.onExecuted = function(output, ...rest) {
-      for (const value of output?.dlss_setup_report || []) show(value);
+      if (!task.busy) for (const value of output?.dlss_setup_report || []) { task.changed(); show(value); }
       return executed?.call(this, output, ...rest);
     };
     const configure = node.onConfigure;
@@ -125,13 +125,19 @@ app.registerExtension({
     };
     const changed = node.onWidgetChanged;
     node.onWidgetChanged = function(...args) {
-      if (report) status.textContent = t("配置已更改，请重新检查");
+      task.changed();
+      if (report) { dirty = true; status.textContent = t("配置已更改，请重新检查"); }
       return changed?.apply(this, args);
     };
-    const unsubscribe = onLocaleChange(() => show(report));
+    const unsubscribe = onLocaleChange(() => {
+      const wasDirty = dirty; show(report);
+      if (wasDirty) { dirty = true; status.textContent = t("配置已更改，请重新检查"); }
+      task.repaint();
+    });
     const removedHandler = node.onRemoved;
     node.onRemoved = function(...args) {
       removed = true;
+      task.dispose();
       unsubscribe();
       disposeTranslations(root);
       return removedHandler?.apply(this, args);

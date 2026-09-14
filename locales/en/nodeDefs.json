@@ -1,16 +1,174 @@
 {
+  "DLSSExperimentalCameraInput": {
+    "display_name": "DLSS Camera Timeline Input",
+    "description": "Explicit calibrated, estimated or renderer camera timeline bound to the exact VIDEO SHA-256. No pose estimator or guessed projection. Full source CFR timeline and reset metadata required.",
+    "inputs": {
+      "sequence": {
+        "name": "Sequence",
+        "tooltip": "Absolute backend path to a version-1 dlss_camera_timeline JSON. Use the same Video Input Adapter sequence as Input Assembler and depth."
+      },
+      "manifest_path": {
+        "name": "Manifest path",
+        "tooltip": "Absolute backend path to a version-1 dlss_camera_timeline JSON. Use the same Video Input Adapter sequence as Input Assembler and depth."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Camera"
+      },
+      "1": {
+        "name": "Report"
+      }
+    }
+  },
+  "DLSSExperimentalStreamlineStage": {
+    "display_name": "DLSS Streamline SR / DLAA Stage",
+    "description": "Connect Input Assembler with camera and device depth, then Pipeline Render and owned_sl runtime. One Streamline SR/DLAA stage; RR materials and mixed NR/SL stages are not inferred from VIDEO.",
+    "inputs": {
+      "pipeline": {
+        "name": "Pipeline",
+        "tooltip": "Connect Input Assembler with camera and device depth, then Pipeline Render and owned_sl runtime. One Streamline SR/DLAA stage; RR materials and mixed NR/SL stages are not inferred from VIDEO."
+      },
+      "mode": {
+        "name": "Mode",
+        "tooltip": "Even dimensions and exact source aspect ratio. DLAA keeps source size and ignores targets.",
+        "options": {
+          "quality": "Quality",
+          "balanced": "Balanced",
+          "performance": "Performance",
+          "ultra_performance": "Ultra Performance",
+          "dlaa": "DLAA"
+        }
+      },
+      "output_size_mode": {
+        "name": "Output resolution",
+        "tooltip": "Multipliers use the actual input video at execution and recalculate for a new source, preserving aspect with legal even dimensions. Only manual mode uses width/height; DLAA keeps source size. Quality and scale are independent and must pass runtime size support checks. No silent downsize or fallback.",
+        "options": {"manual": "Manual dimensions", "1_5x": "1.5×", "2x": "2×", "3x": "3×"}
+      },
+      "output_width": {
+        "name": "Output width",
+        "tooltip": "Even dimensions and exact source aspect ratio. DLAA keeps source size and ignores targets."
+      },
+      "output_height": {
+        "name": "Output height",
+        "tooltip": "Even dimensions and exact source aspect ratio. DLAA keeps source size and ignores targets."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Pipeline"
+      },
+      "1": {
+        "name": "Report"
+      }
+    }
+  },
+  "DLSSExperimentalReconstructionInput": {
+    "display_name": "DLSS Reconstruction Bundle Input",
+    "description": "Load explicit color/motion/device-depth/camera and optional RR buffers. Not an ordinary MP4 input or an estimator. Metadata/sizes are inspected; pixel hashes are checked during rendering.",
+    "inputs": {
+      "manifest_path": {
+        "name": "Manifest path",
+        "tooltip": "Absolute backend path to a version-1 renderer bundle JSON. Referenced local files must stay inside its directory."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "bundle"
+      },
+      "1": {
+        "name": "report"
+      }
+    }
+  },
+  "DLSSExperimentalReconstructionRender": {
+    "display_name": "DLSS Reconstruction Render",
+    "description": "Run SR/DLAA/RR through owned_sl CXR1 and export standard VIDEO for Save Video and its preview. No foreground focus, FG/MFG, NR Look or CSR1 fallback. SDR output is clamped/quantized, not HDR.",
+    "inputs": {
+      "bundle": {
+        "name": "Renderer bundle",
+        "tooltip": "Connect Reconstruction Bundle Input; RR needs complete renderer/material buffers."
+      },
+      "runtime": {
+        "name": "Runtime",
+        "tooltip": "Select owned_sl and isolated mode; CNR1/CSR1 Workers are not interchangeable."
+      },
+      "feature": {
+        "name": "Feature",
+        "tooltip": "SR plus DLAA mode is DLAA; RR requires linear SDR and genuine G-buffers.",
+        "options": {
+          "sr": "SR / DLAA",
+          "rr": "Ray Reconstruction (RR)"
+        }
+      },
+      "mode": {
+        "name": "Quality / resolution mode",
+        "tooltip": "DLAA preserves source dimensions. Other modes need compatible explicit larger output sizes.",
+        "options": {
+          "quality": "Quality",
+          "balanced": "Balanced",
+          "performance": "Performance",
+          "ultra_performance": "Ultra Performance",
+          "dlaa": "DLAA"
+        }
+      },
+      "output_width": {
+        "name": "Output width",
+        "tooltip": "Explicit even output width; ignored for DLAA. No input/guide resizing."
+      },
+      "output_height": {
+        "name": "Output height",
+        "tooltip": "Explicit even output height; preserve the exact aspect ratio. DLAA retains source size."
+      },
+      "start_frame": {
+        "name": "Start frame",
+        "tooltip": "Zero-based first output frame within the bundle; independent of NR Preview."
+      },
+      "frame_count": {
+        "name": "Frame count (0 = remaining)",
+        "tooltip": "0 means remaining frames; 1 makes a one-frame VIDEO for inspection. Excess ranges fail."
+      },
+      "history_frames": {
+        "name": "History frames",
+        "tooltip": "Evaluate preceding frames without exporting them. First input resets history; source cuts remain active."
+      },
+      "include_audio": {
+        "name": "Include aligned audio",
+        "tooltip": "Use the optional hash-bound, zero-aligned audio source; AAC re-encoding. No audio is fabricated."
+      },
+      "ffmpeg_path": {
+        "name": "ffmpeg path",
+        "tooltip": "Optional absolute host executable/directory. Empty uses backend PATH."
+      },
+      "ffprobe_path": {
+        "name": "ffprobe path",
+        "tooltip": "Optional absolute executable/directory. Empty uses PATH or the configured ffmpeg directory."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "video"
+      },
+      "1": {
+        "name": "report"
+      }
+    }
+  },
   "DLSSExperimentalRuntimeConfig": {
     "display_name": "DLSS 5 Runtime Configuration",
     "description": "Selects the backend, exact runtime files, host platform, Proton installation and Worker lifecycle. Windows launches natively; Linux uses Proton. Native Linux NR and the official adapter are not implemented.",
     "inputs": {
       "backend": {
-        "name": "NR backend",
-        "tooltip": "auto reads the preset backend. direct_nr is active; the official adapter is reserved.",
+        "name": "Feature backend",
+        "tooltip": "auto follows the preset. direct_nr: external D5V2; owned_nr: CNR1 and thin caller; owned_sr: SDK-enabled CSR1 Worker and SR model, GPU acceptance pending. owned_sl uses the separate CXR1 Worker with explicit renderer bundles.",
         "options": {
           "auto": "Automatic",
           "direct_nr": "Direct NR",
+          "owned_nr": "Owned NR (experimental)",
+          "owned_sr": "Owned SR / DLAA (SDK, experimental)",
           "renodx_reshade": "ReShade/RenoDX (diagnostic)",
-          "nvidia_official": "Official adapter (not implemented)"
+          "nvidia_official": "Official adapter (not implemented)",
+          "owned_sl": "Streamline SR/DLAA/RR (CXR1)"
         }
       },
       "proton": {
@@ -45,7 +203,7 @@
       },
       "keep_worker_alive": {
         "name": "Lazy resident Worker",
-        "tooltip": "On: lazily reuse matching dimensions/NR controls. Off: release after task. NR control changes rebuild the instance."
+        "tooltip": "NR can reuse matching instances. SR currently requires off: release after each task. Changing NR controls rebuilds its instance. owned_sl also requires this off."
       },
       "idle_timeout_seconds": {
         "name": "Idle release timeout (s)",
@@ -88,7 +246,7 @@
     "inputs": {
       "analysis_scale": {
         "name": "Flow analysis size (percent)",
-        "tooltip": "Percent of working-frame dimensions used for flow analysis; vectors are scaled back to NR pixel units."
+        "tooltip": "Flow-analysis width/height relative to source, not SR output size. 50 = one quarter of analysis pixels; 100 = full source. DIS Balanced also uses a coarser pyramid level; Quality uses the finest level. No geometry inference is rerun."
       },
       "scene_cut_threshold": {
         "name": "Scene-cut threshold",
@@ -130,7 +288,7 @@
       },
       "settings": {
         "name": "Guide settings",
-        "tooltip": "Connect Video Guides."
+        "tooltip": "Optional legacy guide settings. In the new workflow, connect Guides to Input Assembler instead; its settings take precedence."
       },
       "color_policy": {
         "name": "Color metadata policy",
@@ -327,7 +485,7 @@
   },
   "DLSSExperimentalSetupHelper": {
     "display_name": "DLSS Setup Helper",
-    "description": "Checks the selected runtime, host tools, Python packages, platform bridge and optical-flow dependencies without launching the NR Worker/model. Passes the runtime through unchanged.",
+    "description": "Checks the selected runtime, host tools, Python packages, platform bridge and optical-flow dependencies without launching the NR Worker/model. Passes the runtime through unchanged. owned_sl checks NumPy and explicit renderer motion, without DIS/NVOF. CXR1 bundle/GPU acceptance remains separate.",
     "inputs": {
       "runtime": {
         "name": "Selected runtime",
@@ -348,6 +506,10 @@
       "include_diagnostics": {
         "name": "Include host diagnostics",
         "tooltip": "Adds fuller command output. Local paths and GPU details are included in the copyable report."
+      },
+      "pipeline": {
+        "name": "Media pipeline (optional)",
+        "tooltip": "Connect Input Assembler or NR Stage to check resolved media tools and guide selection. Overrides sequence/flow_provider; does not render."
       }
     },
     "outputs": {
@@ -665,6 +827,439 @@
     "outputs": {
       "0": {
         "name": "Storage report"
+      }
+    }
+  },
+  "DLSSExperimentalExternalGuide": {
+    "display_name": "DLSS External Numerical Guide",
+    "description": "Load numerical motion/depth/confidence/normals/mask metadata from a manifest bound to the active VIDEO. Requested frames are hash, shape and timestamp checked. No estimator or model download.",
+    "inputs": {
+      "sequence": {
+        "name": "Inspected media",
+        "tooltip": "Connect the same Video Input Adapter sequence used by Input Assembler; source content and view must match."
+      },
+      "manifest_path": {
+        "name": "Guide manifest path",
+        "tooltip": "Path on the ComfyUI host to a schema-v1 JSON manifest. Frame raw/.npy paths are relative to its directory; RGB visualizations are not numerical guides."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Numerical guide"
+      },
+      "1": {
+        "name": "Copyable guide details"
+      }
+    }
+  },
+  "DLSSExperimentalGuideSelector": {
+    "display_name": "DLSS External Guide Selector",
+    "description": "Select one external numerical guide. Only the selected lazy branch is requested; a missing selection fails without fallback.",
+    "inputs": {
+      "selection": {
+        "name": "Selected branch",
+        "tooltip": "Select A, B or C before loading the corresponding manifest. Unselected branches may still run if another output requests them.",
+        "options": {
+          "a": "A",
+          "b": "B",
+          "c": "C"
+        }
+      },
+      "a": {
+        "name": "A",
+        "tooltip": "Numerical guide; only requested when selected."
+      },
+      "b": {
+        "name": "B",
+        "tooltip": "Numerical guide; only requested when selected."
+      },
+      "c": {
+        "name": "C",
+        "tooltip": "Numerical guide; only requested when selected."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Numerical guide"
+      },
+      "1": {
+        "name": "Copyable guide details"
+      }
+    }
+  },
+  "DLSSExperimentalSRSettings": {
+    "display_name": "DLSS SR / DLAA Settings",
+    "description": "Separate SR/DLAA controls. Connect SR Stage to Pipeline Render with an SDK-enabled owned_sr runtime; GPU acceptance is pending. No motion, device depth or jitter is synthesized. SR A/B Preview is unavailable.",
+    "inputs": {
+      "mode": {
+        "name": "SR quality mode",
+        "tooltip": "DLAA keeps source size; SR targets a larger image. Quality names do not prescribe a fixed scaling ratio.",
+        "options": {
+          "DLAA · 原分辨率抗锯齿": "DLAA - Native-resolution antialiasing",
+          "Quality · 质量": "Quality",
+          "Balanced · 均衡": "Balanced",
+          "Performance · 性能": "Performance",
+          "Ultra Performance · 超高性能": "Ultra Performance"
+        }
+      },
+      "preset": {
+        "name": "SR model preset",
+        "tooltip": "Prefer Model default. J/K/L/M are SDK hints whose availability and behavior depend on the selected runtime.",
+        "options": {
+          "Model default · 模型默认": "Model default",
+          "Preset J · 预设 J": "Preset J",
+          "Preset K · 预设 K": "Preset K",
+          "Preset L · 预设 L": "Preset L",
+          "Preset M · 预设 M": "Preset M"
+        }
+      },
+      "depth_inverted": {
+        "name": "Reversed-Z depth",
+        "tooltip": "Must describe the actual numerical device-depth encoding. Does not invert or convert a depth map."
+      },
+      "auto_exposure": {
+        "name": "NGX automatic exposure",
+        "tooltip": "Request internal exposure estimation. Disabling requires positive frame exposure metadata; this is not artistic brightness."
+      },
+      "jitter_policy": {
+        "name": "Source jitter policy",
+        "tooltip": "Finished video uses zero jitter. External jitter must come from actual render sampling; never invent offsets.",
+        "options": {
+          "Finished video: zero jitter · 成片零抖动": "Finished video: zero jitter",
+          "Actual render metadata · 原始渲染元数据": "Actual render metadata"
+        }
+      },
+      "motion_jittered": {
+        "name": "Motion contains render jitter",
+        "tooltip": "Only enable for vectors that actually include render sampling jitter, with actual render metadata selected."
+      },
+      "hdr": {
+        "name": "Declare HDR input",
+        "tooltip": "Metadata only. Existing SDR conversion is not an HDR SR implementation."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "SR / DLAA settings"
+      },
+      "1": {
+        "name": "Copyable settings details"
+      }
+    }
+  },
+  "DLSSExperimentalSRStage": {
+    "display_name": "DLSS SR / DLAA Stage",
+    "description": "Declare one SR/DLAA stage on fresh assembled input. Requires matching numerical device depth and an SDK-enabled owned_sr Worker at Pipeline Render. No rendering here; no mixed NR/SR stacks or SR A/B Preview.",
+    "inputs": {
+      "pipeline": {
+        "name": "Assembled input pipeline",
+        "tooltip": "Connect Input Assembler before any effect stages. Device depth must match source, view, grid and timestamps."
+      },
+      "settings": {
+        "name": "SR / DLAA settings",
+        "tooltip": "Connect SR Settings, not NR Look. Current media execution needs SDR, zero jitter and automatic exposure."
+      },
+      "output_width": {
+        "name": "SR output width",
+        "tooltip": "Explicit larger target preserving source aspect ratio. DLAA ignores it and keeps source size."
+      },
+      "output_height": {
+        "name": "SR output height",
+        "tooltip": "Explicit target height. Pipeline Render scale must remain 100; no extra resize is applied."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "SR media pipeline"
+      },
+      "1": {
+        "name": "Copyable stage report"
+      }
+    }
+  },
+  "DLSSExperimentalSRPlan": {
+    "display_name": "DLSS SR Input Plan",
+    "description": "Inspect dimensions and attached numerical-guide declarations for SR/DLAA without decoding or starting a Worker. Reports compatibility and missing preparation, never rendered video.",
+    "inputs": {
+      "settings": {
+        "name": "SR / DLAA settings",
+        "tooltip": "Connect SR / DLAA Settings, not NR Look."
+      },
+      "input_width": {
+        "name": "Manual input width",
+        "tooltip": "Used without a connected sequence/pipeline. Inspected source dimensions take precedence."
+      },
+      "input_height": {
+        "name": "Manual input height",
+        "tooltip": "Used without a connected sequence/pipeline. Inspected source dimensions take precedence."
+      },
+      "output_width": {
+        "name": "SR output width",
+        "tooltip": "Explicit target preserving the exact source aspect ratio. DLAA always uses source dimensions."
+      },
+      "output_height": {
+        "name": "SR output height",
+        "tooltip": "SR must enlarge the source. This node neither resizes frames nor guesses a quality-mode ratio."
+      },
+      "sequence": {
+        "name": "Inspected media (optional)",
+        "tooltip": "Connect either Video Input Adapter sequence or a pipeline, not both. Only source dimensions are inspected."
+      },
+      "pipeline": {
+        "name": "Input pipeline (optional)",
+        "tooltip": "Inspect source dimensions and external motion/depth declarations. Does not execute NR, optical flow or SR, or read and validate frame tensors."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Copyable SR input plan"
+      }
+    }
+  },
+  "DLSSExperimentalFlowSelector": {
+    "display_name": "DLSS Flow Selector",
+    "description": "Request only the selected lazy provider branch. Missing input fails without fallback.",
+    "inputs": {
+      "selection": {
+        "name": "Selected branch",
+        "tooltip": "Connect only the branches you want to compare; only the selected branch is evaluated.",
+        "options": {
+          "a": "A",
+          "b": "B",
+          "c": "C"
+        }
+      },
+      "a": {
+        "name": "A",
+        "tooltip": "Connect only the branches you want to compare; only the selected branch is evaluated."
+      },
+      "b": {
+        "name": "B",
+        "tooltip": "Connect only the branches you want to compare; only the selected branch is evaluated."
+      },
+      "c": {
+        "name": "C",
+        "tooltip": "Connect only the branches you want to compare; only the selected branch is evaluated."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Provider configuration"
+      },
+      "1": {
+        "name": "Copyable selection details"
+      }
+    }
+  },
+  "DLSSExperimentalInputAssembler": {
+    "display_name": "DLSS Input Assembler",
+    "description": "Assemble inspected VIDEO and numerical guides. Select configured DIS/NVIDIA motion or external current-to-previous pixel flow. Depth, normals, mask and confidence are reported but not consumed by NR. No model runs here.",
+    "inputs": {
+      "sequence": {
+        "name": "Inspected media",
+        "tooltip": "Connect Video Input Adapter. Its guide input is optional."
+      },
+      "flow_provider": {
+        "name": "Motion provider",
+        "tooltip": "Optional: overrides the provider in Guides or the Input Adapter."
+      },
+      "settings": {
+        "name": "Guide settings",
+        "tooltip": "Optional: analysis size, cut resets and consistency diagnostics. Otherwise inherits Input Adapter settings."
+      },
+      "external_motion": {
+        "name": "External motion guide",
+        "tooltip": "Connect numerical current-to-previous pixel flow for the same source. Read only in External mode; requires source hash and exact timestamps."
+      },
+      "depth": {
+        "name": "Depth guide (NR: metadata only)",
+        "tooltip": "Optional numerical depth attachment. NR does not consume it; relative depth is not device depth."
+      },
+      "normals": {
+        "name": "Normal guide (NR: metadata only)",
+        "tooltip": "Optional numerical view/world normals. NR does not consume them."
+      },
+      "mask": {
+        "name": "Mask guide (NR: metadata only)",
+        "tooltip": "Optional numerical validity/reactive/composition mask. It does not mask NR motion or output."
+      },
+      "confidence": {
+        "name": "Confidence guide (NR: metadata only)",
+        "tooltip": "Optional numerical motion/depth confidence. NR does not use it to weight or reject vectors."
+      },
+      "motion_source": {
+        "name": "Motion source",
+        "tooltip": "Configured uses DIS/NVIDIA/zero settings. External explicitly requests the external_motion branch; no silent fallback.",
+        "options": {
+          "configured": "Configured flow estimator",
+          "external": "External numerical guide"
+        }
+      },
+      "camera": {
+        "name": "Camera",
+        "tooltip": "Explicit calibrated, estimated or renderer camera timeline bound to the exact VIDEO SHA-256. No pose estimator or guessed projection. Full source CFR timeline and reset metadata required."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Media pipeline"
+      },
+      "1": {
+        "name": "Copyable assembly details"
+      }
+    }
+  },
+  "DLSSExperimentalNRStage": {
+    "display_name": "DLSS NR Stage",
+    "description": "Append a Look or Stack without rendering. Chain stages up to three total NR passes, or branch for independent effects.",
+    "inputs": {
+      "pipeline": {
+        "name": "Input pipeline",
+        "tooltip": "Connect Input Assembler or another NR Stage. No intermediate video encoding."
+      },
+      "profile": {
+        "name": "NR Look or Stack",
+        "tooltip": "Effect configuration; connected Stack contributes all of its passes."
+      },
+      "enabled": {
+        "name": "Enable stage",
+        "tooltip": "Off preserves a bypass stage. If all stages and comparison bypass, no flow estimator is needed."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Output pipeline"
+      },
+      "1": {
+        "name": "Copyable stage details"
+      }
+    }
+  },
+  "DLSSExperimentalPipelinePreview": {
+    "display_name": "DLSS Pipeline Preview",
+    "description": "In-node A/B preview of the NR pipeline. VIDEO outputs retain this preview's range, frame mode and scale. For final output, branch the same NR Stage into Pipeline Render and Save Video.",
+    "inputs": {
+      "runtime": {
+        "name": "Runtime configuration",
+        "tooltip": "Selects runtime files, host/Proton and Worker lifecycle."
+      },
+      "profile_a": {
+        "name": "Reference Look A (optional)",
+        "tooltip": "Optional second Look or Pass Stack. Unconnected means original at matching size/color. Parameters are not frozen."
+      },
+      "start_time": {
+        "name": "Preview start (s)",
+        "tooltip": "Seconds from the input VIDEO start, after any upstream trim."
+      },
+      "duration": {
+        "name": "Manual duration (s)",
+        "tooltip": "Ignored by Process to end. Otherwise range length, clamped at input end; in frame mode only bounds the cursor. Not end time, batch size or warmup."
+      },
+      "preview_scale": {
+        "name": "Preview dimensions (percent)",
+        "tooltip": "Scales both dimensions: 50 means about one quarter the pixels, 100 means input size. Changes NR input and VIDEO output, not just display. Not SR.",
+        "options": {
+          "50": "50",
+          "75": "75",
+          "100": "100"
+        }
+      },
+      "contract": {
+        "name": "History settings (optional)",
+        "tooltip": "History processing only. Default context 0.5 s and new-Worker warmup 120 evaluations; neither adds to output duration."
+      },
+      "preview_mode": {
+        "name": "Queue preview mode",
+        "tooltip": "Main Comfy Run uses this mode. The two card buttons select frame/range for one request without changing saved values or running downstream saves.",
+        "options": {
+          "range": "Selected range",
+          "frame": "Cursor frame"
+        }
+      },
+      "cursor_time": {
+        "name": "Cursor offset within range (s)",
+        "tooltip": "Offset within the selected range; start 10 plus cursor 1.5 selects around 11.5 s. Frame mode only; range mode ignores it."
+      },
+      "process_to_end": {
+        "name": "Process to video end",
+        "tooltip": "Reads remaining duration automatically; start 0 means whole video. The frame button still outputs one frame. Frame/disk capacity checks remain."
+      },
+      "retain_prepared_cache": {
+        "name": "Retain prepared input cache",
+        "tooltip": "Retain small prepared entries for Look reuse, within the shared cache quota. Large ranges always stream without a prepared disk cache. Off removes small entries after success; failures or concurrent retaining consumers keep completed entries. Manage old temporary previews in DLSS Storage Manager."
+      },
+      "pipeline": {
+        "name": "Media pipeline",
+        "tooltip": "Connect NR Stage. Only the output node executes the plan; render range is independent of preview."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Preview session"
+      },
+      "1": {
+        "name": "Status JSON"
+      },
+      "2": {
+        "name": "Video B"
+      },
+      "3": {
+        "name": "Video A"
+      }
+    }
+  },
+  "DLSSExperimentalPipelineRender": {
+    "display_name": "DLSS Pipeline Render",
+    "description": "Connect Input Assembler with camera and device depth, then Pipeline Render and owned_sl runtime. One Streamline SR/DLAA stage; RR materials and mixed NR/SL stages are not inferred from VIDEO. Streamline only: output one frame at start_time after history. NR single-frame inspection uses Pipeline Preview.",
+    "inputs": {
+      "runtime": {
+        "name": "Runtime configuration",
+        "tooltip": "Selects runtime files, host/Proton and Worker lifecycle."
+      },
+      "start_time": {
+        "name": "Output start (s)",
+        "tooltip": "Seconds from input VIDEO start, independent of Preview."
+      },
+      "duration": {
+        "name": "Output duration (s, 0 = remainder)",
+        "tooltip": "Ignored by Process to end. Otherwise positive duration or legacy zero for all remaining input. Requires sufficient disk."
+      },
+      "scale": {
+        "name": "Output dimensions (percent)",
+        "tooltip": "NR: 100 preserves source size, 50/75 downscale. SR: must be 100; target dimensions come from SR Stage, not this percentage.",
+        "options": {
+          "50": "50",
+          "75": "75",
+          "100": "100"
+        }
+      },
+      "contract": {
+        "name": "History settings (optional)",
+        "tooltip": "Output time range stays separate. NR uses its history/warmup settings; SR consumes pre-roll only and never repeats NR warmup."
+      },
+      "process_to_end": {
+        "name": "Process to video end",
+        "tooltip": "Output from start to input end, ignoring manual duration. SR output dimensions still come from SR Stage."
+      },
+      "retain_prepared_cache": {
+        "name": "Retain prepared input cache",
+        "tooltip": "NR: retain eligible small prepared entries within quota; large ranges stream. SR always streams and does not retain a prepared raw-frame cache; this toggle does not change SR."
+      },
+      "pipeline": {
+        "name": "Media pipeline",
+        "tooltip": "Connect NR Stage or one SR/DLAA Stage. Mixed NR/SR stacks are unsupported. SR requires owned_sr; output dimensions belong to SR Stage."
+      },
+      "single_frame": {
+        "name": "Single frame",
+        "tooltip": "Streamline only: output one frame at start_time after history. NR single-frame inspection uses Pipeline Preview."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Video"
+      },
+      "1": {
+        "name": "Diagnostic report"
       }
     }
   }

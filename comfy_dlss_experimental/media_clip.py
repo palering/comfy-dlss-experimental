@@ -131,7 +131,9 @@ def prepare_clip(source: Path, directory: Path, request: ClipRequest,
     read_start = max(Fraction(0), start - Fraction(str(request.pre_roll)))
     reformatter = VideoReformatter()
     frames = []
-    with TemporalGuideGenerator(width, height, guides, cancelled=cancelled) as temporal, av.open(str(source)) as container, (directory / "color.rgba").open("xb") as colors, (directory / "motion.rg16f").open("xb") as motions:
+    source_sha256 = file_hash(source)
+    source_identity = {"sha256": source_sha256, "width": video["width"], "height": video["height"]}
+    with TemporalGuideGenerator(width, height, guides, cancelled=cancelled, source_identity=source_identity) as temporal, av.open(str(source)) as container, (directory / "color.rgba").open("xb") as colors, (directory / "motion.rg16f").open("xb") as motions:
         stream = next(s for s in container.streams.video if s.index == video["index"])
         origin = Fraction(stream.start_time or 0) * stream.time_base
         if read_start > 0:
@@ -162,7 +164,7 @@ def prepare_clip(source: Path, directory: Path, request: ClipRequest,
                 if color_pipeline["operation"] == "bt709_to_srgb":
                     rgba = convert_rgba8(rgba, color_pipeline["source_transfer"], color_pipeline["working_transfer"])
             with phase("optical_flow"):
-                motion, guide = temporal.process(rgba)
+                motion, guide = temporal.process(rgba, pts_ns=round(relative * 1_000_000_000))
             with phase("cache_write"):
                 colors.write(rgba)
                 motions.write(motion)
@@ -179,7 +181,7 @@ def prepare_clip(source: Path, directory: Path, request: ClipRequest,
     visible = [i for i, frame in enumerate(frames) if frame["visible"]]
     if not visible:
         raise ValueError("no visible frame after pre-roll")
-    manifest = {"schema_version": 1, "source": str(source), "source_sha256": file_hash(source), "storage_plan": storage,
+    manifest = {"schema_version": 1, "source": str(source), "source_sha256": source_sha256, "storage_plan": storage,
                 "request": asdict(request), "guide_settings": asdict(guides), "metadata": metadata,
                 "width": width, "height": height, "fps": str(rate), "frames": frames,
                 "visible_start_index": visible[0], "visible_count": len(visible),
@@ -212,7 +214,9 @@ def export_video(raw: Path, destination: Path, manifest: dict, *, with_audio: bo
         command += ["-ss", f"{first:.9f}", "-i", manifest["source"]]
     command += ["-map", "0:v:0"]
     if audio:
-        command += ["-map", "1:a:0", "-c:a", "aac", "-b:a", "160k"]
+        # Match the streaming encoder: end the decoded audio range explicitly,
+        # without rebasing away source offsets or relying on AAC packet size.
+        command += ["-map", "1:a:0", "-af", f"atrim=end={float(count / rate):.9f}", "-c:a", "aac", "-b:a", "160k"]
     transfer = manifest["metadata"]["video"]["color_transfer"]
     # Set frame metadata as well as codec options: FFmpeg 9/libx264 can otherwise
     # replace codec-level transfer/primaries with the raw input's unspecified tags.

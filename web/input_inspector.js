@@ -1,8 +1,9 @@
 import { t, bindText, disposeTranslations, onLocaleChange } from "./i18n.js";
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { previewPrompt } from "./preview_state.js";
+import { createInspectionTask, inspectionMessage } from "./inspection_task.mjs?v=1";
 import { reportSections, reportIssue } from "./input_report.js";
+import { decodeDiagnosticReport } from "./diagnostic_report.js";
 
 const NODE = "DLSSExperimentalPrepareTemporalSequence";
 const states = () => ({ready: t("可开始准备"), ready_with_assumptions: t("可准备 · 含用户假设"),
@@ -32,6 +33,9 @@ function installStyle() {
     .dlss-input-status { color:#86d5b5; }
     .dlss-input-status[data-state=needs_confirmation], .dlss-input-status[data-state=ready_with_assumptions] { color:#f2cb7f; }
     .dlss-input-status[data-state=unsupported], .dlss-input-status[data-state=unreadable] { color:#ffa7a7; }
+    .dlss-input-status[data-state=no_report], .dlss-input-status[data-state=unknown],
+    .dlss-input-status[data-state=stale], .dlss-input-status[data-state=interrupted] { color:#f2cb7f; }
+    .dlss-input-status[data-state=failed], .dlss-input-status[data-state=submit_failed] { color:#ffa7a7; }
     .dlss-input-caption { font-size:11px; color:#aab3c0; overflow-wrap:anywhere; }
     .dlss-input-card details { border-top:1px solid #303945; margin-top:8px; padding-top:6px; }
     .dlss-input-card summary { cursor:pointer; font-weight:600; }
@@ -49,11 +53,12 @@ app.registerExtension({
     installStyle();
     const root = element("section", "dlss-input-card");
     const header = element("header");
-    const status = element("span", "dlss-input-status", () => t("尚未检查"));
+    const status = element("span", "dlss-input-status", t("尚未检查"));
+    status.setAttribute("role", "status");
     header.append(element("strong", "", () => t("视频输入诊断")), status);
     const button = element("button", "", () => t("检查输入（不运行 NR）"));
     button.type = "button";
-    const caption = element("div", "dlss-input-caption", () => t("只执行本节点及上游。更换视频或配置后请重新检查。"));
+    const caption = element("div", "dlss-input-caption", () => t("只执行本节点及上游；上游重建已启用时可能运行模型。更换视频或配置后请重新检查。"));
     const issues = element("div", "dlss-input-issues");
     const body = element("div");
     root.append(header, button, caption, issues, body);
@@ -61,9 +66,11 @@ app.registerExtension({
     root.addEventListener("wheel", event => event.stopPropagation());
     let report = null, removed = false, dirty = false;
     function show(value) {
+      value = decodeDiagnosticReport(value);
       if (!value || removed) return;
       report = value;
       dirty = false;
+      body.hidden = false;
       node.properties ||= {};
       node.properties.dlss_input_report = value;
       status.textContent = states()[value.state] || value.state;
@@ -81,23 +88,22 @@ app.registerExtension({
       }
       button.disabled = false;
     }
-    button.onclick = async () => {
-      button.disabled = true; status.textContent = t("检查排队中");
-      try {
-        const graph = await app.graphToPrompt();
-        if (!Object.hasOwn(graph.output, String(node.id))) throw new Error(t("子图内部请使用 Comfy 执行到所选节点。"));
-        await api.queuePrompt(0, {workflow: graph.workflow, output: previewPrompt(graph.output, node.id)});
-      } catch (error) {
-        status.textContent = t("提交失败"); issues.textContent = error.message || String(error);
-      } finally { button.disabled = false; }
-    };
+    const task = createInspectionTask({api, app, node, reportKeys: ["dlss_input_report"], onReport: show,
+      onState(value) {
+        button.disabled = value.busy;
+        if (value.kind === "reported") return;
+        status.textContent = inspectionMessage(value); status.dataset.state = value.kind;
+        dirty = !!report; body.hidden = !!report;
+        issues.textContent = report ? t("旧报告已隐藏，不代表本次检查结果。") : "";
+      }});
+    button.onclick = () => task.submit();
     node.addDOMWidget("dlss_input_inspector", "DLSS_INPUT_INSPECTOR", root, {
       serialize:false, hideOnZoom:false, getMinHeight:() => 420, getMaxHeight:() => 570,
     });
     node.setSize([Math.max(node.size[0], 500), Math.max(node.size[1], 670)]);
     const oldExecuted = node.onExecuted;
     node.onExecuted = function(output, ...rest) {
-      for (const value of output?.dlss_input_report || []) show(value);
+      if (!task.busy) for (const value of output?.dlss_input_report || []) { task.changed(); show(value); }
       return oldExecuted?.call(this, output, ...rest);
     };
     const oldConfigure = node.onConfigure;
@@ -108,18 +114,20 @@ app.registerExtension({
     };
     const oldChanged = node.onWidgetChanged;
     node.onWidgetChanged = function(...args) {
+      task.changed();
       if (report) { dirty = true; status.textContent = t("配置已更改，请重新检查"); }
       return oldChanged?.apply(this, args);
     };
     const oldRemoved = node.onRemoved;
     const unsubscribe = onLocaleChange(() => {
-      if (!report) return;
+      if (!report) { task.repaint(); return; }
       const wasDirty = dirty;
       const open = [...body.children].map(item => item.open);
       show(report);
       if (wasDirty) { dirty = true; status.textContent = t("配置已更改，请重新检查"); }
       [...body.children].forEach((item, index) => { item.open = open[index] ?? item.open; });
+      task.repaint();
     });
-    node.onRemoved = function(...args) { removed = true; unsubscribe(); disposeTranslations(root); return oldRemoved?.apply(this, args); };
+    node.onRemoved = function(...args) { removed = true; task.dispose(); unsubscribe(); disposeTranslations(root); return oldRemoved?.apply(this, args); };
   },
 });

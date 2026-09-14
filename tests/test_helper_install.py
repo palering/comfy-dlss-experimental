@@ -11,11 +11,13 @@ from comfy_dlss_experimental.helper_artifacts import helper_names, find_helper, 
 
 
 class HelperInstallTests(unittest.TestCase):
-    def make_archive(self, directory, target="linux-x86_64", version="test-v1", extra=None, bad_hash=False):
-        files = {name: b"helper" for name in helper_names(target).values()}
+    def make_archive(self, directory, target="linux-x86_64", version="test-v1", extra=None, bad_hash=False, owned=False):
+        files = {name: b"helper" for name in helper_names(target, include_owned=owned).values()}
         files["THIRD_PARTY_NOTICES.txt"] = b"notices"
         manifest = {"schema_version": 1, "target": target, "version": version,
                     "files": {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}}
+        if owned:
+            manifest["include_owned"] = True
         if bad_hash:
             manifest["files"][next(iter(files))] = "0" * 64
         files["manifest.json"] = json.dumps(manifest).encode()
@@ -60,3 +62,17 @@ class HelperInstallTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 https_url(value)
         self.assertEqual(https_url("https://example.com/x"), "https://example.com/x")
+
+    def test_owned_bundle_installs_our_nested_caller_not_external_models(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = self.make_archive(root, owned=True)
+            destination = install_archive(archive, sha256(archive), target="linux-x86_64", install_root=root / "sidecar/bin")
+            self.assertEqual((destination / "caller/nvngx.dll").read_bytes(), b"helper")
+            with patch("comfy_dlss_experimental.helper_artifacts.REPO", root), \
+                 patch("comfy_dlss_experimental.helper_artifacts.target_platform", return_value="linux-x86_64"):
+                self.assertEqual(find_helper("caller"), destination / "caller/nvngx.dll")
+                self.assertEqual(find_helper("worker"), destination / "comfy-dlss-worker.exe")
+            archive = self.make_archive(root, owned=True, extra={"nvngx_dlssnr.dll": b"model"})
+            with self.assertRaises(ValueError):
+                install_archive(archive, sha256(archive), target="linux-x86_64", install_root=root / "sidecar/bin")

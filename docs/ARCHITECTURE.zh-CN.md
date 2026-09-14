@@ -5,6 +5,8 @@
 Audience: public
 
 ComfyUI 进程负责节点定义、输入检查、媒体准备、缓存键、任务调度与进程监管，绝不在 Python 中加载厂商图形 DLL。
+完整视频调度现在具有[不依赖宿主的文件入口](execution-boundary.zh-CN.md)：Comfy 提供
+VIDEO 适配器与执行上下文，共用执行器返回文件路径和报告。预览／UI 端点仍属于 Comfy。
 
 ## 当前视频路径
 
@@ -20,6 +22,10 @@ Comfy VIDEO / Input Adapter
 
 Relay 只是进程与管道桥接器，不实现 NGX。外部 Worker 虽名为 DLL，实际是 Windows 可执行程序；任意同名驱动 DLL 或 caller shim 都不能替代其视频协议。详见[直接 NR 契约](direct-nr-relay.zh-CN.md)。
 
+显式 `owned_nr` 预设选择另一条已实现路径：同一宿主媒体层 → `OwnedMediaClient`
+→ 已认证 CNR1 → 自有 C++ Worker → 薄 caller + NR 模型，不经过外部 relay。
+旧预设不会自动改变，见[自有 NR](owned-runtime.zh-CN.md)。
+
 Python 负责解码、可选 SDR 工作传递函数转换、光流、切镜重置、前置帧、音频、编码与原子发布输出。小区间使用有配额的磁盘缓存；大区间先扫描时序，再逐帧执行解码/光流/NR/编码。修改 Look 可复用保留的小条目，大区间流式任务会重新计算光流，见[存储上限](STORAGE.zh-CN.md)。
 
 可选 `DLSS NR Pass Stack` 在同一准备结果上顺序执行 1–3 层：下一层读取上一层未压缩
@@ -28,6 +34,26 @@ RGBA，所有层复用原始运动/时间戳/切镜标记，每层重置独立�
 [多层 NR](MULTI_PASS_NR.zh-CN.md)。
 
 宿主媒体程序的选择与 Proton 分离。Input Adapter 的路径配置沿 sequence 传入任务，通过任务局部上下文使用，不修改全局 PATH；缓存记录工具身份。PyAV 版本与外部命令分别报告，见[媒体工具](media-tools.zh-CN.md)。
+
+## 内部执行边界
+
+缓存与流式 NR 路径均通过 `processing_plan.py` 把现有 Look/Stack 转成有序功能阶段。
+`backend_contracts.py` 描述已实现的 `external_d5v2_nr` 传输契约：输入颜色和运动，
+输出同尺寸 RGBA8，每个提交帧返回一个保留时间戳的结果。这是静态实现说明，
+不是 GPU/驱动/依赖就绪探测。该 ID 仅用于内部，原有运行预设和输出端口类型含义不变。
+
+旧格式适配保持轮次继承、关闭/零混合阶段、引导复用和报告字段不变。原有参数校验、
+历史处理和 Worker 执行继续承担原来的检查；这不实现 SR/FG。
+
+可选新路径增加 Flow Selector、Input Assembler、NR Stage、Pipeline Preview 和
+Pipeline Render。`media_pipeline.py` 保留不透明 VIDEO 引用及隔离的配置，将 NR 阶段
+转换给同一执行器；各分支互不修改配置。阶段节点不展开整段视频、不编码中间文件。
+所选光流及头信息／契约检查在节点卡片内显示，内容、时序和 GPU 校验明确延后，
+不冒充已经验证。详见[处理链连接与限制](media-pipeline.zh-CN.md)。
+
+`guide_providers.py` 只创建所选光流实现，定义 estimate/reset/close 生命周期边界。
+DIS/NVIDIA 配置仍可在不创建估计器的情况下序列化。时序层仍负责缩放、像素单位转换、
+切镜检测和运动打包。零运动模式不创建估计器；NVIDIA 失败不静默回退到 DIS。
 
 ## 平台边界
 
@@ -55,8 +81,11 @@ Worker 崩溃只令任务失败，不把失败的原生状态带入 Comfy。Wind
 Release，且仅在所选运行库确实要求调用者验证时启用。当前 D5V2 后端在迁移期间保留，
 不静默改变旧预设。完整二进制证据和设计原则见[运行时角色](RUNTIME_ROLES.zh-CN.md)。
 
+自有 [caller 转发组件](caller-shim.zh-CN.md) 已可独立构建，具有便携 ABI 转发测试，
+仅由显式选择的 `owned_nr` 使用；它不是旧 Worker 可执行程序的替代品。
+
 ## 媒体契约与未实现能力
 
-当前 D5V2 接受 RGBA8 颜色和当前→上一帧的 RG16F 运动。光流是图像位移估计，不是引擎真实几何运动。此 Worker 接口不能传深度、法线、材质、任意蒙版或曝光纹理；SR、FG、HDR 未实现。出现某个实验 Look 字段不保证所有模型都对它有可见响应。
+当前 D5V2 接受 RGBA8 颜色和当前→上一帧的 RG16F 运动。光流是图像位移估计，不是引擎真实几何运动。此 Worker 接口不能传深度、法线、材质、任意蒙版或曝光纹理。可选 [SR 源码执行路径](super-resolution.zh-CN.md) 使用独立 CSR1 与 SDK 构建，默认 NR 构建未启用；FG、HDR 处理仍未实现。出现某个实验 Look 字段不保证所有模型都对它有可见响应。
 
 保留的 ReShade carrier、NGX bootstrap 和 [frame-stream-v1](../sidecar/protocol/frame-stream-v1.zh-CN.md) 属于独立诊断。多平面协议验证传输/D3D12 拷贝，不是 D5V2；其中的深度/蒙版不是当前 NR 输入。后续后端必须显式适配媒体语义、验证能力并拒绝不支持的输入。

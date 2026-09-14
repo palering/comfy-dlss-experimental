@@ -28,11 +28,16 @@ def validate_version(value):
     return value
 
 
-def helper_names(target):
+def helper_names(target, include_owned=False):
     if target not in TARGETS:
         raise ValueError("Unsupported helper target")
-    return {"relay": "dlss-native-relay.exe",
-            "nvof": "dlss-nvof-helper.exe" if target == "windows-x86_64" else "dlss-nvof-helper"}
+    if type(include_owned) is not bool:
+        raise ValueError("include_owned must be boolean")
+    names = {"relay": "dlss-native-relay.exe",
+             "nvof": "dlss-nvof-helper.exe" if target == "windows-x86_64" else "dlss-nvof-helper"}
+    if include_owned:
+        names.update(worker="comfy-dlss-worker.exe", caller="caller/nvngx.dll")
+    return names
 
 
 def sha256(path):
@@ -45,7 +50,7 @@ def sha256(path):
 
 def find_helper(role):
     target = target_platform()
-    name = helper_names(target)[role]
+    name = helper_names(target, include_owned=True)[role]
     directory = REPO / "sidecar" / "bin" / target
     active = directory / "active.json"
     if active.is_file():

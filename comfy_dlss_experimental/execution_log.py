@@ -247,7 +247,9 @@ def tracked(kind):
                         from .preview import preview_sessions, send_preview_event
                         public = preview_sessions.update(trace.preview, execution=snapshot | {"result": None})
                         send_preview_event(public, trace.preview.client_id)
-                    if trace.report_file is not None:
+                    # A failed job may never reach its first output report. The
+                    # execution record above is still complete in that case.
+                    if trace.report_file is not None and (trace.record["state"] == "success" or trace.report_file.exists()):
                         existing = json.loads(trace.report_file.read_text())
                         existing["execution"] = snapshot | {"result": None}
                         trace.report_file.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -300,5 +302,5 @@ def execution_status(limit=15, include_gpu=False):
             "resident": resident_worker.snapshot(),
             "resource_sample_seconds": RESOURCE_SAMPLE_SECONDS,
             "lifecycle": {"default_policy": "isolated", "lazy_start": True, "persistent_supported": True,
-                          "persistent_scope": "verified D5V2 worker/model pair; identical NR controls and dimensions"},
+                          "persistent_scope": "D5V2 verified pair or CNR1 explicit END/reset; identical NR controls and dimensions"},
             "note": "GPU utilization is device-wide; RSS sums owned processes; peaks are sampled every 1s."}

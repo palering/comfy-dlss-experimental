@@ -58,7 +58,7 @@ class LocaleAndExampleTests(unittest.TestCase):
     def test_examples_have_consistent_links_and_only_installed_node_types(self):
         allowed = set(node_schemas()) | {"LoadVideo", "SaveVideo"}
         files = list((ROOT / "example_workflows").glob("*.json"))
-        self.assertEqual(len(files), 4)
+        self.assertEqual(len(files), 9)
         workflow_ids = set()
         for file in files:
             data = json.loads(file.read_text(encoding="utf-8"))
@@ -81,7 +81,10 @@ class LocaleAndExampleTests(unittest.TestCase):
                     for link_id in out.get("links") or []: self.assertIn(link_id, links)
                 if node["type"] == "LoadVideo": self.assertEqual(node["widgets_values"], ["example-input.mp4"])
                 if node["type"] == "DLSSExperimentalRuntimeConfig":
-                    self.assertEqual(node["widgets_values"][4], "runtime-presets/default.json")
+                    expected_preset = {"dlss_sr_experimental.json": "runtime-presets/owned-sr.json",
+                                       "dlss_reconstruction.json": "runtime-presets/owned-sl.json",
+                                       "dlss_streamline_video.json": "runtime-presets/owned-sl.json"}.get(file.name, "runtime-presets/default.json")
+                    self.assertEqual(node["widgets_values"][4], expected_preset)
                     self.assertEqual(node["widgets_values"][7], "auto")
                 if node["type"] == "DLSSExperimentalProcessVideo": self.assertEqual(node["widgets_values"], [0, 0, 100, True])
             self.assertEqual(data["last_node_id"], max(nodes))

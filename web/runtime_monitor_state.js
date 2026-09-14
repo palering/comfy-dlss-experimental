@@ -3,6 +3,7 @@ export const number = (v, unit = " MiB") => Number.isFinite(v) ? v.toFixed(2) + 
 export const stages = () => ({ input_binding: t("输入检查"), input_preparation: t("颜色/光流准备"), runtime_snapshot: t("运行库校验"),
   color_conversion: t("↳ 像素转换"), optical_flow: t("↳ 光流计算"), cache_write: t("↳ 缓存写入"),
   cache_read_verify: t("逐帧缓存读取/校验"), worker_startup: t("进程启动/握手"),
+  worker_session_create: t("创建 NR 会话/模型资源"), owned_color_conversion: t("↳ NR FP16 数值转换"),
   first_frame_and_warmup: t("等待首帧/初始化/预热"), nr_frames_and_transport: t("逐帧 NR + 传输"),
   worker_acquire: t("获取常驻实例（包含冷启动子项）"), worker_return: t("归还/释放实例"),
   history_reset_first_frame: t("复用实例：历史重置与首帧"),
@@ -67,7 +68,7 @@ export function residentLines(worker) {
     ] : [worker.state === "idle" ? t("等待常驻资源采样（不是零占用）")
       : worker.state === "running" ? t("执行中资源见本次任务采样") : t("请等待资源释放；清理异常会在此处显示。")]),
     t`日志目录 ${worker.log_directory || t("未记录")}`,
-    `Backend ${rt.backend || t("未知")} · ${rt.platform || t("未知")} · Proton ${rt.proton?.version || t("未使用")}`,
+    `Backend ${rt.backend || t("未知")} · ${worker.protocol || "D5V2"} · ${rt.platform || t("未知")} · Proton ${rt.proton?.version || t("未使用")}`,
     ...Object.entries(rt.components || {}).map(([role, path]) => `${role}: ${path}\nSHA256 ${rt.component_hashes?.[role] || t("未知")}`),
     t("组件以 SHA256 标识版本，不是产品版本号。"),
     worker.error ? t`错误 ${worker.error}` : "",

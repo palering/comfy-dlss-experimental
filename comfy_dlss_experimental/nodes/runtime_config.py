@@ -41,7 +41,8 @@ class DLSSExperimentalRuntimeConfig(io.ComfyNode):
             search_aliases=["dlss", "proton", "runtime", "dll bundle"],
             description="Binds an execution backend, exact Proton installation, runtime preset, and worker lifecycle policy.",
             inputs=[
-                io.Combo.Input("backend", options=["auto", "direct_nr", "renodx_reshade", "nvidia_official"], default="auto"),
+                io.Combo.Input("backend", options=["auto", "direct_nr", "owned_nr", "owned_sr", "owned_sl", "renodx_reshade", "nvidia_official"], default="auto",
+                    tooltip="auto follows the preset. owned_sl uses a separate CXR1 Worker for Reconstruction Render with explicit camera/renderer inputs. owned_sr uses CSR1; owned_nr uses CNR1; direct_nr preserves D5V2. These protocols are not interchangeable."),
                 io.Combo.Input("proton", options=runtime_proton_choices(), default="auto",
                     display_name="已安装 Proton", tooltip="Linux / Proton 执行时有效。填写自定义路径后优先使用路径。"),
                 io.Combo.Input(
@@ -166,12 +167,42 @@ class DLSSExperimentalRuntimeConfig(io.ComfyNode):
                 descriptor["backend"] = selected_backend
             elif preset.backend != backend:
                 errors.append(f"Selected backend {backend} does not match preset {preset.backend}.")
-            if selected_backend == "direct_nr":
+            if selected_backend in {"direct_nr", "owned_nr"}:
                 if linux_display_backend == "wayland_native_experimental" and system == "linux":
                     errors.append("Direct NR currently requires Xwayland; native Wayland is not verified.")
                 descriptor["capabilities"] = {"preview": True, "native_resolution": True, "upscaling": False,
                                               "hdr": False, "persistent": False, "max_clip_seconds": 86400,
                                               "max_frame_count": 1_000_000, "storage_policy": "available_disk_preflight"}
+                if selected_backend == "owned_nr":
+                    descriptor["capabilities"].update(persistent=True, protocol="CNR1", max_width=1920,
+                        max_height=1080, max_frame_count=999760, experimental=True,
+                        gpu_acceptance="separate_from_file_readiness", inter_pass_color="rgba8")
+            elif selected_backend == "owned_sr":
+                descriptor["capabilities"] = {"protocol": "CSR1", "features": ["sr", "dlaa"],
+                    "upscaling": True, "preview": False, "persistent": False, "hdr": False,
+                    "max_width": 1920, "max_height": 1080, "max_output_width": 3840, "max_output_height": 2160,
+                    "worker_support": "must_be_confirmed_by_CSR1_handshake", "gpu_acceptance": "not_verified",
+                    "file_readiness_only": True, "experimental": True}
+                if worker_policy != "isolated":
+                    errors.append("SR currently requires isolated workers; disable keep_worker_alive.")
+                if linux_display_backend == "wayland_native_experimental" and system == "linux":
+                    errors.append("The SR Proton path requires Xwayland; native Wayland is not implemented.")
+            elif selected_backend == "owned_sl":
+                from ..sr_dimensions import LIMITS
+                descriptor["capabilities"] = {"protocol": "CXR1", "features": ["sr", "dlaa", "rr", "rr_dlaa"],
+                    "upscaling": True, "preview": False, "persistent": False, "hdr": False,
+                    "max_width": LIMITS['input_max_side'], "max_height": LIMITS['input_max_side'],
+                    "max_input_pixels": LIMITS['input_max_pixels'],
+                    "max_output_width": LIMITS['output_max_side'], "max_output_height": LIMITS['output_max_side'],
+                    "max_output_pixels": LIMITS['output_max_pixels'], "max_result_bytes": LIMITS['cxr_max_payload'],
+                    "limits_source": "host_ceiling_not_selected_worker_or_gpu_support",
+                    "worker_support": "must_be_confirmed_by_CXR1_handshake", "file_readiness_only": True,
+                    "gpu_acceptance": "depends_on_selected_runtime_and_input", "experimental": True,
+                    "input": "explicit_renderer_bundle", "foreground_required": False}
+                if worker_policy != "isolated":
+                    errors.append("Reconstruction requires isolated workers; disable keep_worker_alive.")
+                if linux_display_backend == "wayland_native_experimental" and system == "linux":
+                    errors.append("The reconstruction Proton path requires Xwayland; native Wayland is not implemented.")
             preset_key, component_hashes = preset_fingerprint(preset, base_dir=preset_path.parent)
             descriptor["preset_key"] = preset_key
             descriptor["runtime_key"] = execution_fingerprint(

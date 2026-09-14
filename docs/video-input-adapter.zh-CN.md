@@ -4,13 +4,17 @@
 
 Audience: public
 
-既有 ID DLSSExperimentalPrepareTemporalSequence 显示为 **DLSS Video Input Adapter**，接受 VIDEO 与 Guides 配置，保持 sequence/report 插槽。它也是输出节点，“检查输入（不运行 NR）”仅排队自身及祖先，不涉及 Worker、运行时预设或 GPU 初始化。
+既有 ID DLSSExperimentalPrepareTemporalSequence 显示为 **DLSS Video Input Adapter**，接受 VIDEO 与 Guides 配置，保持 sequence/report 插槽。它也是输出节点，“检查输入（不运行 NR）”仅排队自身及祖先。Adapter 自身不启动 Worker 或初始化 GPU；但若上游连接了已启用的模型重建节点，检查按钮也会执行该上游，因此不能把整条检查链视为必定不运行模型。
 
 ## 信息与状态
 
 卡片显示文件/demuxer、大小、编码/profile、位深、像素格式、编码尺寸、有效 VIDEO 尺寸/裁剪、时间戳、报告帧数、色彩、音频和准备计划。未知字段保持未知；demuxer 名不是唯一容器子类型，名义 fps 不证明 CFR。
 
 状态含 ready、带假设就绪、待确认、不支持、不可读、延后。区分头部可读与完整解码/时序验证。文件 VIDEO 不全解码；tensor/stream 等 VIDEO 在所选区间实体化后验证。卡片标注上次检查，换素材后重查。GPU/Proton 就绪由 Runtime 单独负责。
+
+检查按钮按本次任务 ID 跟踪提交、排队、执行和结束；执行失败、中断或提交失败会解除等待并显示原因。任务成功结束却没有本节点报告时，提示检查上游重建开关、采样兼容性或跳过状态，不再一直显示“检查排队中”。Comfy 队列完成不等于所有下游节点都已执行。
+
+缓存报告只从同一次任务恢复；检查期间修改本节点或上游配置会将返回结果标记为过期。旧报告在等待和无新结果时隐藏，不当成本次成功。活动检查有低频历史／队列核对；连接异常或任务已从队列消失且无历史时显示无法确认，不自动重提任务。节点删除后释放监听和定时器。配置检查卡与输入／处理计划卡复用相同状态处理。
 
 ## 缺失色彩的显式策略
 

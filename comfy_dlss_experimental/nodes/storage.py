@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from comfy_api.latest import io
+from ..diagnostic_ui import diagnostic_ui
 from ..storage_manager import inventory
 
 
@@ -24,7 +25,7 @@ class DLSSExperimentalStorageManager(io.ComfyNode):
     @classmethod
     def execute(cls, **_kwargs):
         report = inventory()
-        return io.NodeOutput(json.dumps(report, ensure_ascii=False, indent=2), ui={"dlss_storage": [report]})
+        return io.NodeOutput(json.dumps(report, ensure_ascii=False, indent=2), ui=diagnostic_ui("dlss_storage", report))
 
     @classmethod
     def fingerprint_inputs(cls, **_kwargs):

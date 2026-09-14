@@ -18,6 +18,18 @@ For agent handoff and private process state, read `.agent-docs/process.md` local
 
 ## Documentation Areas
 
+- [Input assembly, flow selection and NR pipelines](media-pipeline.en.md).
+- [External numerical motion/depth guides](external-guides.en.md) (NR consumes selected motion; other roles remain explicit attachments).
+- [SR / DLAA execution and acceptance limits](super-resolution.en.md) (optional SDK Worker; not enabled in the default build).
+- [Streamline reconstruction nodes and renderer bundle format](reconstruction-nodes.en.md) (explicit owned_sl/CXR1, separate from old SR nodes).
+- [VIDEO to Streamline and camera reconstruction inputs](streamline-video-input.en.md) (unified assembler, camera timeline, SR/DLAA stage and output).
+- [Camera-aware Streamline SR/DLAA/RR backend](streamline-reconstruction.en.md) (CXR1 development API and native lifecycle).
+- [Host-neutral file execution and Comfy adapters](execution-boundary.en.md).
+- [Project-owned caller shim development](caller-shim.en.md) (not the active Worker).
+- [Owned Worker acceptance host and ABI checks](owned-worker.en.md) (development, not video production).
+- [Owned CNR1 streaming and session lifecycle](owned-protocol.en.md).
+- [Experimental owned_nr installation and limits](owned-runtime.en.md) (explicit opt-in; legacy presets unchanged).
+
 - [Storage limits, streaming and file cleanup](STORAGE.en.md).
 
 - [Input adapter](video-input-adapter.en.md), [motion/input contract](nr-input-reconstruction.en.md), [NVIDIA optical flow](nvidia-optical-flow.en.md).

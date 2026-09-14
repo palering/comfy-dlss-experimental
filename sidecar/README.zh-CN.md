@@ -4,9 +4,53 @@
 
 Audience: public
 
+## Streamline CXR1 重建 Worker 与诊断
+
+独立 [CXR1 开发后端](../docs/streamline-reconstruction.zh-CN.md)已将显式 Python
+相机／SR／RR 输入接到该功能引擎。用 `build_sl_worker.py` 构建，输出
+`comfy-dlss-sl-worker.exe --serve-sl`，不是默认 NR／CSR1 Worker。
+其受控 GPU／传输验证不同于下述合成探测；显式
+[owned_sl 重建节点](../docs/reconstruction-nodes.zh-CN.md)也已通过有界 Comfy SaveVideo 集成测试。
+
+`sl_sr_engine.*` 是独立 C++ 功能适配器，要求显式数值相机常量，不含 Comfy、媒体或
+传输代码。`sl_sr_probe.cpp` 仅提供合成静态棋盘场景：RGBA16F 颜色、零 RG16F 运动与
+平面 R32F 设备深度。它不是 `owned_sr` 实现，也不是视频节点。
+
+使用已有 Zig 和用户提供的官方 Streamline 头文件构建：
+
+```bash
+python3 sidecar/build_sl_sr_probe.py --streamline-include /path/to/streamline/include --native-tests
+```
+
+此交叉构建动态查找 SL 导出，不链接 NGX／SL 导入库，不安装 MSVC sysroot。
+输出 `sidecar/build/sl-sr-probe/comfy-dlss-sl-sr-probe.exe` 及构建／哈希报告。
+需另行提供匹配的 `sl.interposer.dll`、`sl.common.dll`、`sl.dlss.dll`、`nvngx_dlss.dll`
+及它们的运行时依赖；构建脚本不下载或复制厂商文件。
+
+诊断参数依次为绝对运行库目录、新建任务目录、`device|frame|sequence` 和非零项目 UUID，
+最后可加 `sr|dlaa|rr|rr-dlaa`（默认 `sr`）。RR 另需 `sl.dlss_d.dll`、`nvngx_dlssd.dll`，
+测试素材显式提供合成材质缓冲。
+按该顺序分阶段运行，外围须有超时和隔离的进程所有权。它写入 JSONL 事件和 FP16 输出，
+通过隐藏 swapchain 每帧执行一次真实挂钩 Present，满足 SL 生命周期记账；处理结果从
+独立离屏纹理回读。未启用 OTA 标志。GPU 等待与完整诊断均有时限，失败不表示可以安全自动重试。
+
+使用所提供 SL 2.14.1 二进制，在 Linux/Proton 上已通过有界 640×360 → 960×540
+合成场景的设备／Present、单帧和八帧推理；所有通道有限，第五帧重置后精确重现前四帧。
+这不是自然视频画质、长时间、原生 Windows、完整 ABI、CSR1 传输或 Comfy SR 验收。
+CSR1 当前没有该适配器要求的相机元数据，适配器不会替视频静默编造它；SL SR 公共接口
+也未暴露 NGX 的帧时间参数。原有后端选择和默认 Worker 能力声明不变。
+
 当前正式视频路径使用 **dlss-native-relay.exe + 用户外部 Worker/模型**，不是下文保留的 NGX bootstrap。relay 用已有 Zig 编译，不需要 Windows/MSVC 构建机、NGX SDK 或 ReShade。见[直接 NR](../docs/direct-nr-relay.zh-CN.md)与[分发](../docs/distribution.zh-CN.md)。NVIDIA 光流 helper 另按宿主平台编译。
 
+可选重构路径：[自有 NR 运行时](../docs/owned-runtime.zh-CN.md)使用本项目 Worker 与薄 caller；
+[SR/DLAA](../docs/super-resolution.zh-CN.md)使用同一 Worker 的官方 SDK 构建，不用 NR caller。
+SR 源码/CPU 检查不代表已链接或已通过 GPU 验收。旧 relay 预设不会自动迁移，以下保留旧路径与诊断背景。
+
 图形 DLL 必须留在独立进程，不进 Comfy Python。Windows 原生执行 PE，Linux 经用户选择 Proton。以下是保留的加载、GPU 拷贝与 ABI 诊断，不是安装必做步骤，也不是当前 NR 输入契约。
+
+独立的[自有 caller shim](../docs/caller-shim.zh-CN.md) 是带类型转发测试的开发组件，
+当前视频路径不使用它，不可替换外部 Worker。可选构建需要官方 SDK 头文件，
+普通 relay 安装仍不需要这些头文件。
 
 ## 诊断协议与解析器
 

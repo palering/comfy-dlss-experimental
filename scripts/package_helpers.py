@@ -9,9 +9,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from comfy_dlss_experimental.helper_artifacts import REPO, TARGETS, helper_names, sha256, validate_version
 
 
-def package(target, version, build_dir, output):
+def package(target, version, build_dir, output, include_owned=False):
     validate_version(version)
-    names = helper_names(target)
+    names = helper_names(target, include_owned=include_owned)
     files = {name: build_dir / name for name in names.values()}
     # Require real target formats; don't label a Linux binary as a Windows EXE.
     for role, name in names.items():
@@ -27,6 +27,8 @@ def package(target, version, build_dir, output):
     import hashlib
     manifest = {"schema_version": 1, "version": version, "target": target,
                 "files": {name: sha256(path) for name, path in files.items()}}
+    if include_owned:
+        manifest["include_owned"] = True
     manifest["files"]["THIRD_PARTY_NOTICES.txt"] = hashlib.sha256(notices.encode()).hexdigest()
     output.mkdir(parents=True, exist_ok=True)
     archive = output / f"comfy-dlss-helpers-{version}-{target}.zip"
@@ -46,5 +48,6 @@ if __name__ == "__main__":
     parser.add_argument("--version", required=True)
     parser.add_argument("--build-dir", type=Path, default=REPO / "sidecar" / "build")
     parser.add_argument("--output", type=Path, default=REPO / "dist")
+    parser.add_argument("--include-owned", action="store_true", help="Include our experimental Worker and thin caller; never the NR model")
     args = parser.parse_args()
-    package(args.target, args.version, args.build_dir, args.output)
+    package(args.target, args.version, args.build_dir, args.output, args.include_owned)
